@@ -309,12 +309,12 @@
     "pathStyle": "gravel"
   },
   "sky": {
-    "clouds": 0.4,
-    "haze": 0.25,
-    "blue": 0.7
+    "clouds": 0.55,
+    "haze": 0.05,
+    "blue": 1
   },
   "horizon": {
-    "mountains": 0.8,
+    "mountains": 0.6,
     "color": "#4f7f8a",
     "height": 0.45,
     "layout": "ahead"
