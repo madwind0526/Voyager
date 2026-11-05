@@ -5,7 +5,8 @@
     "kind": "grass",
     "color": "#4f8a2a",
     "path": 0.5,
-    "pathColor": "#7a6040"
+    "pathColor": "#8f8a80",
+    "pathStyle": "gravel"
   },
   "sky": {
     "clouds": 0.4,

@@ -30,7 +30,7 @@
 | `ground.reflect` | 0~1 | 0.85 | **salt만**: 거울 반사 세기 (높을수록 하늘이 선명하게 비친다) |
 | `ground.cracks` | 0~1 | 0.4 | **salt만**: 소금 땅의 갈라진 육각형 무늬 |
 | `ground.sea` | 0~1 | 0 | **sand만**: 걷는 방향의 **오른쪽에 바다**가 생긴다 (0 = 없음, 0.5 = 멀리 보이는 바다, 0.9 = 해안선이 바로 옆). 해안선에는 물결과 거품이 일고 왼쪽은 모래사장이다. 폰 화면은 좁아서 0.8 이상이어야 바다가 크게 보인다 |
-| `ground.pathStyle` | `dirt` / `gravel` / `road` | `dirt` | 길의 종류. `dirt` 흙길(폭이 들쭉날쭉하고 가장자리에 풀이 번지며 가운데에 풀이 난다), `gravel` 자갈길(`pathColor` `#8f8a80`), `road` 아스팔트 도로(양쪽 흰 선, 가운데 노란 겹선, `ground.path` 1, `pathColor` `#3a3c40`). 자연스러운 풍경에는 `dirt`나 `gravel`을 권한다 |
+| `ground.pathStyle` | `dirt` / `gravel` / `road` | `dirt` | 길의 종류. `dirt` 흙길(폭이 들쭉날쭉하고 가장자리에 풀이 번지며 가운데에 풀이 난다), `gravel` 자갈길(`pathColor` `#8f8a80`), `road` 아스팔트 도로(양쪽 흰 선, 가운데 노란 겹선, `ground.path` 1, `pathColor` `#3a3c40`). 자연스러운 풍경에는 `gravel`(가장 자연스럽다)이나 `dirt`를 권한다 |
 | `ground.flowers` | 0~4 | 1 | **grass만**: 들꽃의 양 (0 = 없음, 1 = 보통, 3 = 꽃밭) |
 | `ground.flowerColors` | `#rrggbb` 목록 (최대 4개) | 여섯 색 섞임 | **grass만**: 들꽃 색. 예: 민들레 노랑과 분홍 `["#ffd21a", "#c25bd6"]` |
 | `ground.path` | 0~1 | 0 | **grass, snow, sand 모두 가능**(흙길은 grass에 `pathColor` 갈색): 앞으로 곧게 난 길의 폭 (0 = 길 없음, 0.5 = 보통 오솔길, 1 = 넓은 길). 길은 화면 가운데에서 앞으로 뻗는다 |
@@ -305,7 +305,8 @@
     "kind": "grass",
     "color": "#4f8a2a",
     "path": 0.5,
-    "pathColor": "#7a6040"
+    "pathColor": "#8f8a80",
+    "pathStyle": "gravel"
   },
   "sky": {
     "clouds": 0.4,
