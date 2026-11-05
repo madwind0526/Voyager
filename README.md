@@ -50,7 +50,7 @@ To try it on a phone on the same network, set `HOST=0.0.0.0` before starting the
 2. Drag the screen to turn; the person walks where you face. The footprints button (bottom right) toggles walk and sit. When stamina (top left) reaches 0 the person must sit until it is full again.
 3. Icons: profile (top right: your name and character), community and settings (bottom left), volume and walk/sit (bottom right), music controls (bottom center).
 4. **Settings**: time zone, day length, map cards, wind volume and the bird toggle, music source (URL, folder, playlist file), equalizer.
-5. **Add a map**: press the dashed **+** card in the map list and choose a `.json` map file. The app takes a picture of the map for its card. The trash icon removes a map from the list; the file stays in `public/maps/added/`.
+5. **Add a map**: press the dashed **+** card in the map list and choose a `.json` map file. The app takes a picture of the map for its card. The trash icon removes a map from the list; the file stays in `public/maps/added/` (the list itself lives in the browser, so if its data is cleared, add the files again with **+**).
 6. **Profile**: name and character. For Mixamo characters the walk animation can be chosen too, with **Random** picking a new one each time the person rests and gets up.
 
 ## Make your own map

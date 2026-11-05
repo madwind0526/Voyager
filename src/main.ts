@@ -1,10 +1,10 @@
 import "@fontsource/orbitron/600.css";
 import "./style.css";
-import { PersonStanding, ArrowUp, Armchair, Check, Crown, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mars, Mountain, Play, Settings as Cog, Shirt, Trash2, Upload, User, UserRound, Users, Venus, Volume2, VolumeX, Wind, X } from "lucide";
+import { PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, Wind, X } from "lucide";
 import { validateMap } from "../shared/spec.mjs";
 import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS } from "./config";
 import { EQ_LABELS, EQ_PRESETS, Sound } from "./audio";
-import { load, restore, save } from "./state";
+import { load, normalize, restore, save } from "./state";
 import { dayHour } from "./time";
 import type { MapSpec } from "./types";
 import type { IconNode } from "lucide";
@@ -39,8 +39,15 @@ const allMaps = () => [...bMaps, ...Object.values(s.maps)];
 async function loadBuiltins() {
   const get = async (p: string) => (await fetch(p)).json();
   // Run built-ins through the validators so defaults are filled in, keeping their ids.
-  const norm = async (p: string, v: (x: unknown) => any) => { const raw = await get(p); return { ...v(raw).value, id: raw.id, ...(raw.thumb ? { thumb: raw.thumb } : {}) }; };
-  bMaps = await Promise.all(["salt-desert", "grassland", "snow-north"].map((n) => norm(`/maps/${n}.json`, validateMap)));
+  const norm = async (p: string, v: (x: unknown) => any) => {
+    const raw = await get(p), r = v(raw);
+    if (!r.ok) throw new Error(`${p}: ${r.error}`);
+    return { ...r.value, id: raw.id, ...(raw.thumb ? { thumb: raw.thumb } : {}) };
+  };
+  // One missing or broken file must not stop the app: skip it, and fall back to a plain salt map if none loads.
+  const done = await Promise.allSettled(["salt-desert", "grassland", "snow-north"].map((n) => norm(`/maps/${n}.json`, validateMap)));
+  bMaps = done.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  if (!bMaps.length) bMaps = [{ ...(validateMap({ schema: "voyager.map/1", name: "Salt Desert" }) as any).value, id: "salt-desert" }];
 }
 
 function apply() {
@@ -156,8 +163,12 @@ hud.append(startLayer);
 // ---------- pop-ups ----------
 function openModal(build: (render: () => void) => (Node | string)[]) {
   const back = h("div", "modal");
-  const close = () => back.remove();
+  const close = () => { back.remove(); removeEventListener("keydown", onKey); };
+  const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && hud.lastElementChild === back) close(); }; // only the top pop-up closes
   back.onclick = (e) => { if (e.target === back) close(); };
+  back.setAttribute("role", "dialog");
+  back.setAttribute("aria-modal", "true");
+  addEventListener("keydown", onKey);
   const render = () => back.replaceChildren(h("div", "pop", h("div", "row end", btn(X, "Close", close)), ...build(render)));
   hud.append(back);
   render();
@@ -471,7 +482,12 @@ function openCommunity() {
   let rerender = () => {};
   const fetchList = async () => {
     items = null; failed = false; rerender();
-    try { items = await (await fetch("/api/community/maps")).json(); } catch { failed = true; }
+    try {
+      const res = await fetch("/api/community/maps");
+      const body = await res.json();
+      if (!res.ok || !Array.isArray(body)) throw new Error("bad list");
+      items = body;
+    } catch { failed = true; }
     rerender();
   };
   const upload = () => {
@@ -489,7 +505,7 @@ function openCommunity() {
     };
     f.click();
   };
-  const take = (it: any) => { if (!s.maps[it.id] && allMaps().length >= MAX_MAPS) { alert(`The list is full (${MAX_MAPS} maps). Delete one first.`); return; } s.maps[it.id] = it; s.mapId = it.id; save(s); apply(); capturePicture(it.id); rerender(); };
+  const take = (it: any) => { if (!s.maps[it.id] && allMaps().length >= MAX_MAPS) { alert(`The list is full (${MAX_MAPS} maps). Delete one first.`); return; } s.maps[it.id] = it; s.mapId = it.id; save(s); apply(); void pickSky(); capturePicture(it.id); rerender(); };
   openModal((render) => {
     rerender = render;
     const rows = h("div", "list");
@@ -567,6 +583,9 @@ async function pickSky() {
 
 loadBuiltins().then(async () => {
   await restore(s);
+  normalize(s);
+  if (!CYCLES.includes(s.cycle)) s.cycle = 24;
+  if (!allMaps().some((m) => m.id === s.mapId)) s.mapId = bMaps[0].id!;
   try {
     const available = await (await fetch("/api/animations")).json();
     if (Array.isArray(available.walk) && Array.isArray(available.dance)) animations = available;

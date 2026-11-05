@@ -3,8 +3,9 @@
 // Ambience is made of real recordings (see public/sounds/CREDITS.txt): crickets at night, forest birds
 // by day, wind throughout.
 
-const YT_RE = /(?:youtube\.com|youtu\.be)/i;
-export const isYouTube = (u: string) => YT_RE.test(u);
+export const isYouTube = (u: string) => {
+  try { return /^(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)$/i.test(new URL(u).hostname); } catch { return false; }
+};
 
 // Same bands, filter shape and scale as the SongYUE2 studio equalizer.
 export const EQ_BANDS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -110,7 +111,8 @@ export class Sound {
 
   private playCurrent() {
     const url = this.list[this.order[this.pos] ?? 0];
-    const local = url.startsWith("blob:") || new URL(url, location.href).origin === location.origin;
+    let local = url.startsWith("blob:");
+    if (!local) try { local = new URL(url, location.href).origin === location.origin; } catch { if (++this.errors <= this.list.length) this.advance(true); return; } // an unparsable address: skip it
     // The EQ graph needs the audio context (created on the first user gesture).
     const el = local && this.ctx ? this.eqEl : this.plainEl;
     this.cur = el;

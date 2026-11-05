@@ -14,7 +14,19 @@ const HOST = process.env.HOST ?? "127.0.0.1";
 const MAX_BODY = 64 * 1024;
 const settingsFile = path.join(ROOT, "data", "settings.json");
 const KINDS = { clothes: validateClothes, maps: validateMap };
-const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
+const MIME = {
+  ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json",
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".glb": "model/gltf-binary", ".txt": "text/plain",
+};
+const MAX_ADDED_MAPS = 200; // files in public/maps/added; stops a runaway client from filling the disk
+
+// Writes must come from this app's own pages as JSON. A cross-site form or fetch (which can send text/plain without a
+// preflight) is refused; Sec-Fetch-Site is set by the browser and cannot be forged by a web page.
+const isTrustedWrite = (req) => {
+  const site = req.headers["sec-fetch-site"];
+  if (site && site !== "same-origin" && site !== "none") return false;
+  return /^application\/json(?:;|$)/i.test(req.headers["content-type"] ?? "");
+};
 
 // ---- local music explorer (this machine's files; loopback requests only) ----
 const AUDIO_RE = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i;
@@ -138,9 +150,11 @@ const addedDir = path.join(ROOT, "public", "maps", "added");
 async function addedMapsApi(req, res, action) {
   if (!isLocal(req)) return send(res, 403, { error: "local only" });
   if (req.method !== "POST") return send(res, 405, { error: "method not allowed" });
+  if (!isTrustedWrite(req)) return send(res, 403, { error: "untrusted request" });
   let input;
   try { input = JSON.parse(await readBody(req, 1024 * 1024)); } catch { return send(res, 400, { error: "bad json or payload too large" }); }
   fs.mkdirSync(addedDir, { recursive: true });
+  if (fs.readdirSync(addedDir).length >= MAX_ADDED_MAPS * 2) return send(res, 507, { error: "too many saved maps" });
   if (action === "save") {
     const r = validateMap(input?.spec);
     if (!r.ok) return send(res, 400, { error: r.error });
@@ -171,6 +185,7 @@ async function settingsApi(req, res) {
     catch (e) { if (e.code === "ENOENT") return send(res, 200, null); throw e; }
   }
   if (req.method !== "PUT") return send(res, 405, { error: "method not allowed" });
+  if (!isTrustedWrite(req)) return send(res, 403, { error: "untrusted request" });
   let input;
   try { input = JSON.parse(await readBody(req, 1024 * 1024)); }
   catch { return send(res, 400, { error: "bad json or payload too large" }); }
@@ -204,7 +219,7 @@ function readBody(req, max = MAX_BODY) {
 }
 
 async function api(req, res, parts) {
-  const validate = KINDS[parts[0]];
+  const validate = Object.hasOwn(KINDS, parts[0]) ? KINDS[parts[0]] : undefined;
   if (!validate) return send(res, 404, { error: "unknown kind" });
   fs.mkdirSync(dir(parts[0]), { recursive: true });
   if (req.method === "GET") {
@@ -214,6 +229,7 @@ async function api(req, res, parts) {
     return send(res, 200, items.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)));
   }
   if (req.method === "POST") {
+    if (!isTrustedWrite(req)) return send(res, 403, { error: "untrusted request" });
     let input;
     try { input = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: "bad json" }, "application/json"); }
     const r = validate(input);
@@ -243,7 +259,8 @@ http.createServer(async (req, res) => {
     let file = path.join(dist, rel);
     const pub = path.join(ROOT, "public");
     if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(pub, rel);
-    const inside = file.startsWith(dist) || file.startsWith(pub);
+    const within = (root) => file === root || file.startsWith(root + path.sep); // with the separator: "dist2" is not inside "dist"
+    const inside = within(dist) || within(pub);
     if (!inside || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, "not found", "text/plain");
     send(res, 200, fs.readFileSync(file), MIME[path.extname(file)] ?? "application/octet-stream");
   } catch (e) {

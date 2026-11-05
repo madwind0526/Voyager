@@ -1,5 +1,6 @@
 import { BODIES, defaultBody } from "./bodies";
 import type { MapSpec } from "./types";
+import { validateMap } from "../shared/spec.mjs";
 
 export interface Settings {
   name: string;
@@ -32,6 +33,22 @@ const defaults: Settings = {
   mapId: "salt-desert", maps: {}, pictures: {},
 };
 
+/** Repairs settings that came from storage or the server: a bad number or a broken map must not take the app down. */
+export function normalize(s: Settings) {
+  if (!Number.isFinite(s.cycle) || s.cycle <= 0) s.cycle = 24;
+  if (!Array.isArray(s.eq) || s.eq.length !== 10 || s.eq.some((x) => !Number.isFinite(x))) s.eq = Array(10).fill(0);
+  if (!s.maps || typeof s.maps !== "object" || Array.isArray(s.maps)) s.maps = {};
+  for (const [id, m] of Object.entries(s.maps)) {
+    const r: any = validateMap(m);
+    if (!r.ok) delete s.maps[id];
+    else s.maps[id] = { ...r.value, id, ...(typeof m.thumb === "string" && m.thumb.startsWith("data:image/jpeg") ? { thumb: m.thumb } : {}) };
+  }
+  if (!s.pictures || typeof s.pictures !== "object" || Array.isArray(s.pictures)) s.pictures = {};
+  if (!Array.isArray(s.playlist)) s.playlist = [];
+  if (!s.lastSky || typeof s.lastSky !== "object") s.lastSky = {};
+  return s;
+}
+
 export function load(): Settings {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "{}") ?? {};
@@ -39,7 +56,7 @@ export function load(): Settings {
     delete (s as Settings & { walkAnimation?: string }).walkAnimation;
     // An unknown id is reset; extra people ("x:") are only known after the list is fetched.
     if (!s.body.startsWith("x:") && !BODIES.some((b) => b.id === s.body)) s.body = defaultBody();
-    return s;
+    return normalize(s);
   } catch {
     return { ...defaults };
   }
@@ -66,6 +83,7 @@ export async function restore(s: Settings) {
       stored.animation ??= stored.walkAnimation;
       delete stored.walkAnimation;
       Object.assign(s, stored);
+      normalize(s);
       localStorage.setItem(KEY, JSON.stringify(s));
     } else if (localStorage.getItem(KEY)) {
       save(s);

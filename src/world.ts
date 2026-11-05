@@ -329,91 +329,11 @@ const rangeMat = () =>
       }`,
   });
 
-// Layered mountains, like a misty range photographed from above: many ridges at growing distances. Each ridge is
-// darker at the crest and melts into valley fog at its foot; far ridges are pale and low in contrast.
-const ridgeMat = (seed: number): THREE.ShaderMaterial =>
-  new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    uniforms: { uTop: { value: new THREE.Color() }, uHaze: { value: new THREE.Color() }, uMist: { value: 0.9 }, uRim: { value: 0.4 }, uSeed: { value: seed }, uSnow: { value: 0 }, uForest: { value: 0 }, uFoot: { value: 0 }, uSnowCol: { value: new THREE.Color() }, uNatural: { value: 0 } },
-    vertexShader: `attribute float aSlope, aH; varying vec2 vUv; varying float vSlope, vG; void main(){ vUv = uv; vSlope = aSlope; float v0 = 3.0 / (3.0 + aH); vG = (uv.y - v0) / (1.0 - v0); /* 0 at the ground line, 1 at the crest */ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: /* glsl */ `
-      varying float vSlope, vG;
-      uniform float uFoot;
-      uniform vec3 uTop, uHaze, uSnowCol; uniform float uMist, uRim, uSeed, uSnow, uForest, uNatural; varying vec2 vUv;
-      ${GLSL_NOISE}
-      void main(){
-        float vH = vUv.y;
-        // Slanted spurs and gullies running down the slopes.
-        float spurScale = mix(170.0, 42.0, uNatural);
-        float spur = fbm(vec2(vUv.x * spurScale + vH * mix(20.0, 9.0, uNatural) + uSeed, vH * mix(6.0, 13.0, uNatural) + uSeed * 0.37));
-        float k = smoothstep(0.0, uMist * (0.8 + 0.4 * spur), vH);
-        vec3 col = mix(uHaze, uTop * (0.8 + 0.4 * spur), k); // the foot is pure fog; shading only on the slope
-        // Which way the slope faces (from the silhouette): the sun side is bright, the far side blue shade; steep couloirs run down the faces.
-        float facing = smoothstep(0.1, 0.9, 0.5 + vSlope * 22.0);
-        // Faces are broken up by gullies that slant down away from the peak, so the shading is never a flat band.
-        float diag = fbm(vec2(vUv.x * 170.0 + vH * 70.0 * sign(vSlope) + uSeed, vH * 5.0));
-        float lit = clamp(facing + (diag - 0.5) * 1.1 * (0.4 + 0.6 * abs(facing - 0.5) * 2.0 + 0.3), 0.0, 1.0);
-        float streak = fbm(vec2(vUv.x * 240.0 + uSeed, vH * 2.5));
-        float rockField = fbm(vec2(vUv.x * 38.0 + uSeed, vH * 18.0 + uSeed * 0.71)) + uNatural * ((streak - 0.5) * 0.6 + (0.5 - lit) * 0.45);
-        float rock = smoothstep(0.42, 0.62, rockField) * smoothstep(0.34, 0.5, vH) * (1.0 - smoothstep(0.84, 0.96, vH));
-        float snowField = fbm(vec2(vUv.x * 24.0 + uSeed * 0.53, vH * 12.0 + uSeed * 0.19));
-        float snowLine = 0.42 + (snowField - 0.5) * 0.2 + (spur - 0.5) * 0.08;
-        float snow = smoothstep(snowLine - 0.08, snowLine + 0.08, vH) * uSnow;
-        col = mix(col, uTop * vec3(0.52, 0.48, 0.42), rock * snow);
-        float spur2 = fbm(vec2(vUv.x * spurScale + vH * mix(20.0, 9.0, uNatural) + uSeed + 0.6, vH * mix(6.0, 13.0, uNatural) + uSeed * 0.37));
-        vec3 faces = mix(vec3(0.62, 0.74, 1.0), vec3(1.05, 1.03, 1.0), clamp(mix(0.5 + (spur - spur2) * 6.0, lit + (streak - 0.5) * 0.5, uNatural), 0.0, 1.0)); // sunny and shaded faces
-        faces = mix(faces, mix(vec3(0.34, 0.48, 0.92), vec3(1.2, 1.18, 1.12), lit), uNatural);
-        col = mix(col, uSnowCol * faces, snow * (1.0 - 0.88 * rock));
-        // Dark conifer forest at the foot of the slopes: ragged top edge, a little snow dusted on it.
-        float edgeN = fbm(vec2(vUv.x * 520.0 + uSeed, 3.0));
-        float forest = (1.0 - smoothstep(0.1 + 0.06 * edgeN, 0.16 + 0.1 * edgeN, vH)) * smoothstep(0.0, 0.03, vH) * uForest;
-        col = mix(col, mix(uTop * 0.28, uSnowCol * 0.55, step(0.62, fbm(vec2(vUv.x * 900.0, vH * 80.0)))), forest * 0.9);
-        col = mix(col, uHaze, (1.0 - smoothstep(0.0, 0.5, vG)) * uFoot); // meadow ridges rise out of the haze instead of standing on a dark base
-        col = mix(col, uHaze * 1.25, smoothstep(0.88, 1.0, vH) * uRim); // the crest catches the sky light
-        gl_FragColor = vec4(col, 1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-  });
-
-// Periodic value noise (period P) for seamless ridge lines around the full circle.
-const h1 = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
-function pnoise(x: number, P: number) {
-  const i = Math.floor(x), f = x - i, s = f * f * (3 - 2 * f);
-  const a = h1(((i % P) + P) % P), b = h1((((i + 1) % P) + P) % P);
-  return a + (b - a) * s;
-}
-/** Pointy ridge line 0..1 for angle a: ridged multi-fractal noise, different for each seed. */
-function ridgeLine(a: number, seed: number, framed: boolean, sharp = 1.35) {
-  const u = (a + Math.PI) / (Math.PI * 2);
-  const octaves = [[5, 0.5], [11, 0.27], [23, 0.14], [47, 0.07], [97, 0.035], [193, 0.018]];
-  let h = 0;
-  for (const [P, amp] of octaves) {
-    const r = 1 - Math.abs(2 * pnoise(u * P + seed * 3.7, P) - 1);
-    h += amp * r * r;
-  }
-  const flat = Math.min(1, h / 0.9);
-  if (!framed) return flat;
-  const height = Math.pow(flat, sharp); // > 1: sharper, more pyramid-like peaks; < 1: rounder hills
-  const front = Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2));
-  // High massifs on both sides of the first view and a low saddle between them (a phone sees about +-0.28 rad).
-  const leftPeak = Math.exp(-(((front + 0.3) / 0.16) ** 2));
-  const rightPeak = Math.exp(-(((front - 0.32) / 0.17) ** 2));
-  const gap = Math.exp(-((front / 0.1) ** 2));
-  return Math.min(1, Math.max(0.08, 0.12 + height * 0.22 + (leftPeak * 0.62 + rightPeak * 0.66) * (0.3 + 1.0 * height) - gap * 0.15)); // the noise carves the massifs into crags
-}
-
-const RINGS = 9;
-const ridgeT = (i: number) => i / (RINGS - 1); // 0 = nearest, 1 = farthest
-const ridgeDist = (i: number) => 320 + i * 150; // all nearer than the star dome (1800)
-const ridgeAngle = (i: number) => 0.13 + 0.02 * i; // peak height as seen from here, in radians
-
-const RIDGE_NEAR = new THREE.Color("#14223a");
-const RIDGE_MID = new THREE.Color("#2f8a90");
 const NIGHT_HAZE = new THREE.Color(0.55, 0.66, 1.1); // band color at night, before tone mapping
-const MEADOW_NEAR = new THREE.Color("#0c4256"), MEADOW_FAR = new THREE.Color("#4c8fb4");
 const AHEAD = 1.3; // how far in front of the camera pivot the avatar stands, in meters
 const SKY_SCALE = 4000;
+
+const printTmp = new THREE.Object3D(); // reused every frame by stepPrints
 
 export class World {
   renderer: THREE.WebGLRenderer;
@@ -453,8 +373,7 @@ export class World {
   private side = 1;
   private kind = 0; // 0 salt, 1 meadow, 2 snow
   private gu: Record<string, THREE.IUniform>;
-  private rings: THREE.Mesh[] = [];
-  private range!: THREE.Mesh; // snowy maps: the 3D height-field range that replaces the rings
+  private range!: THREE.Mesh; // the 3D height-field mountain range (every map with mountains)
   private sunLight = new THREE.DirectionalLight(0xffffff, 1);
   private hemi = new THREE.HemisphereLight(0xffffff, 0x8890a0, 0.2);
   private avatar = new THREE.Group();
@@ -505,13 +424,6 @@ export class World {
     this.makeGrass();
     this.makePrints();
 
-    for (let i = 0; i < RINGS; i++) {
-      const R = ridgeDist(i);
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 1, 720, 1, true), ridgeMat(0));
-      ring.frustumCulled = false;
-      this.rings.push(ring);
-      this.scene.add(ring);
-    }
     const RS = 720, RR = 90;
     const rg = new THREE.BufferGeometry();
     rg.setAttribute("position", new THREE.BufferAttribute(new Float32Array((RS + 1) * (RR + 1) * 3), 3));
@@ -689,7 +601,7 @@ export class World {
         if (this.prints.length > 6)this.prints.shift();
       }
     }
-    const o = new THREE.Object3D();
+    const o = printTmp;
     let n = 0;
     for (const p of this.prints) {
       const sx = p.x - this.pos.x, sz = p.z - this.pos.y;
@@ -772,13 +684,10 @@ export class World {
     nightMat.uniforms.uStars.value = m.sky.stars;
     nightMat.uniforms.uCloud.value = m.sky.clouds;
     this.windLevel = m.ambience.wind;
-    const natural = 0; // flat, hazy layered ridges (2D); the 3D range is used for snow-north only
-    this.rings.forEach((r) => { (r.material as THREE.ShaderMaterial).uniforms.uNatural.value = natural; });
     const real = this.usesRange();
-    this.rings.forEach((r, i) => { r.scale.y = ridgeDist(i) * ridgeAngle(i) * (m.horizon.mountains / 0.55) + 0.001; r.visible = m.horizon.mountains > 0 && !real; });
     this.range.visible = real;
     this.range.scale.y = m.horizon.mountains / 0.8;
-    if (real) this.buildRange(Math.random() * 1000);
+    this.rangeDirty = real; // built in the next frame, so the sky-picture change that follows a map change does not build it twice
   }
 
   private photoUrl: Record<"day" | "night", string | null> = { day: null, night: null };
@@ -796,17 +705,17 @@ export class World {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
       const aspect = tex.image.width / tex.image.height;
-      if (kind === "night") {
-        const u = nightMat.uniforms;
-        u.uPhoto.value = tex; u.uPhotoAspect.value = aspect; u.uPhotoOn.value = 1;
-      } else {
-        dayMat.uniforms.uPhoto.value = tex; dayMat.uniforms.uAspect.value = aspect;
-        this.dayLoaded = true;
-      }
-    }, undefined, () => { this.photoUrl[kind] = null; });
+      const slot = kind === "night" ? nightMat.uniforms : dayMat.uniforms;
+      const old = slot.uPhoto.value as THREE.Texture | null;
+      if (kind === "night") { slot.uPhoto.value = tex; slot.uPhotoAspect.value = aspect; slot.uPhotoOn.value = 1; }
+      else { slot.uPhoto.value = tex; slot.uAspect.value = aspect; this.dayLoaded = true; }
+      old?.dispose(); // free the previous picture's GPU memory
+    }, undefined, () => {
+      this.photoUrl[kind] = null;
+      if (kind === "night") nightMat.uniforms.uPhotoOn.value = 0; else this.dayLoaded = false; // a failed load must not leave the old picture up
+    });
   }
 
-  /** New mountain shapes: every ridge gets a fresh random seed (nothing is fixed, so no two visits look the same). */
   /** Fill the height field: ridged noise under an angular envelope (high massifs left and right of the first view, a saddle between). */
   private buildRange(seed: number) {
     const meadow = this.map?.ground.kind !== "snow"; // layered hills: rounded, low
@@ -856,33 +765,12 @@ export class World {
 
   private usesRange() { return !!this.map && this.map.horizon.mountains > 0; }
 
+  /** New mountain shapes with a fresh random seed (nothing is fixed, so no two visits look the same). */
   newScenery() {
-    const base = Math.random() * 1000;
-    if (this.usesRange()) this.buildRange(base);
-    const framed = this.map?.id === "snow-north" || this.map?.id === "grassland";
-    this.rings.forEach((ring, i) => {
-      const seed = base + i * 13;
-      const p = ring.geometry.attributes.position;
-      const cols = 721; // radial segments + 1; the first row is the top edge
-      const hs = new Float32Array(cols);
-      for (let v = 0; v < cols; v++) hs[v] = ridgeLine(Math.atan2(p.getZ(v), p.getX(v)), seed, framed, 0.85 + 0.95 * ridgeT(i)); // near ridges are rounded hills, far ones sharp peaks
-      let slope = ring.geometry.getAttribute("aSlope") as THREE.BufferAttribute | undefined;
-      if (!slope) ring.geometry.setAttribute("aSlope", (slope = new THREE.BufferAttribute(new Float32Array(p.count), 1)));
-      for (let v = 0; v < p.count; v++) {
-        const c = v % cols;
-        p.setY(v, p.getY(v) > 0 || v < cols ? hs[c] : -3);
-        slope.setX(v, hs[Math.min(cols - 1, c + 1)] - hs[Math.max(0, c - 1)]);
-      }
-      let aH = ring.geometry.getAttribute("aH") as THREE.BufferAttribute | undefined;
-      if (!aH) ring.geometry.setAttribute("aH", (aH = new THREE.BufferAttribute(new Float32Array(p.count), 1)));
-      for (let v = 0; v < p.count; v++) aH.setX(v, hs[v % cols]);
-      aH.needsUpdate = true;
-      slope.needsUpdate = true;
-      p.needsUpdate = true;
-      (ring.material as THREE.ShaderMaterial).uniforms.uSeed.value = seed;
-    });
+    this.rangeDirty = false;
+    if (this.usesRange()) this.buildRange(Math.random() * 1000);
   }
-
+  private rangeDirty = false;
   setClothes(c: ClothesSpec) {
     this.clothes = c;
     for (const p of Object.values(this.persons)) p.setClothes(c);
@@ -911,6 +799,7 @@ export class World {
   }
 
   update(dt: number, hour: number) {
+    if (this.rangeDirty) this.newScenery();
     this.t += dt;
     this.sit += ((this.sitting ? 1 : 0) - this.sit) * Math.min(1, dt * 5);
     const moving = this.walking && !this.sitting;
@@ -947,7 +836,7 @@ export class World {
     this.stars.position.copy(this.camera.position);
     this.dayDome.position.copy(this.camera.position);
     this.hazeDome.position.copy(this.camera.position);
-    for (const r of [...this.rings, this.range]) r.position.set(this.camera.position.x, 0, this.camera.position.z);
+    this.range.position.set(this.camera.position.x, 0, this.camera.position.z);
 
     this.gu.uTime.value = this.t;
     this.gu.uCam.value.copy(this.camera.position);
@@ -1002,7 +891,6 @@ export class World {
     this.hemi.intensity = 0.05 + 0.2 * light;
     this.scene.environmentIntensity = 0.1 + 0.6 * light;
 
-    const mc = new THREE.Color(this.map?.horizon.color ?? "#8a9bb5");
     const ru = (this.range.material as THREE.ShaderMaterial).uniforms;
     ru.uHaze.value.copy(hor).multiplyScalar(0.9 + 0.1 * light);
     ru.uSun.value.copy(lightDir).normalize();
@@ -1017,24 +905,6 @@ export class World {
     const hc = new THREE.Color(this.map?.horizon.color ?? "#8a9bb5");
     ru.uCol1.value.copy(hc).multiplyScalar(0.45);
     ru.uCol2.value.copy(hc).multiplyScalar(0.85);
-    const saltDesert = this.map?.id === "salt-desert", meadow = this.kind === 1; // meadow ridges stay pale and hazy, never dark at the foot
-    this.rings.forEach((r, i) => {
-      const u = (r.material as THREE.ShaderMaterial).uniforms;
-      const tt = ridgeT(i);
-      u.uHaze.value.copy(hor).multiplyScalar(0.9 + 0.1 * light);
-      // Aerial perspective: dark blue, then teal, then the color of the haze itself.
-      u.uTop.value.copy(RIDGE_NEAR).lerp(RIDGE_MID, smooth(0, 0.55, tt)).lerp(mc, smooth(0.5, 1, tt) * 0.55)
-        .multiplyScalar(1.8 * light * (1 - 0.45 * this.night) + (saltDesert ? 0.25 * this.night : 0))
-        .lerp(u.uHaze.value, Math.pow(tt, 1.3) * (saltDesert ? 0.6 : meadow ? 0.75 : 0.92));
-      u.uMist.value = (meadow ? 0.55 : 0.18) + (saltDesert ? 0.5 : meadow ? 0.45 : 0.82) * Math.pow(tt, 1.2); // near ridges are solid, far ones are mostly fog
-      u.uRim.value = 0.45 * (1 - tt) + 0.1;
-      u.uSnow.value = (this.map?.horizon.snow ?? 0) * (1 - 0.35 * tt);
-      u.uFoot.value = meadow ? 0.55 : 0;
-      // Meadow hills like a misty photograph: deep teal in front, every layer paler and bluer behind it, mist pooling at each foot.
-      if (meadow) u.uTop.value.copy(MEADOW_NEAR).lerp(MEADOW_FAR, Math.pow(tt, 0.8)).multiplyScalar(1.7 * light * (1 - 0.45 * this.night)).lerp(u.uHaze.value, 0.03 + 0.78 * Math.pow(tt, 1.15));
-      u.uForest.value = (this.map?.horizon.trees ?? 0) * (1 - tt);
-      u.uSnowCol.value.set(0.92, 0.96, 1.0).multiplyScalar(2.3 * light * (1 - 0.45 * this.night) + 0.5 * this.night).lerp(u.uHaze.value, Math.pow(tt, 1.3) * 0.5);
-    });
   }
 }
 
