@@ -281,11 +281,6 @@ function openProfile() {
     }
     animation.value = s.animation;
     animation.onchange = () => { s.animation = animation.value; save(s); applyAnimation(); };
-    const motion = h("select");
-    motion.setAttribute("aria-label", "Motion");
-    motion.append(new Option("Model's own clips", "clips"), new Option("Built-in pose", "procedural"));
-    motion.value = s.motion;
-    motion.onchange = () => { s.motion = motion.value as typeof s.motion; save(s); world.setMotion(s.motion); };
     const row = h("div", "opts");
     for (const b of BODIES) {
       const o = h("div", "opt" + (b.id === s.body ? " on" : ""));
@@ -297,7 +292,6 @@ function openProfile() {
     return [
       h("div", "row", ic(User), name),
       ...(BODIES.some((b) => /\.fbx$/i.test(b.file)) ? [h("div", "row", h("span", "", "Animation"), animation)] : []), // walk clips only matter for Mixamo (FBX) characters
-      h("div", "row", h("span", "", "Motion"), motion),
       h("div", "pick", ic(PersonStanding), row),
     ];
   });

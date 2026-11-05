@@ -6,7 +6,7 @@ A quiet, mobile-first walking app. A person, seen from behind, walks across a wi
 - Maps: **Salt Desert** (mirror lake), **Grassland** (swaying meadow with wildflowers), **Snow North** (snowfall, footprints, aurora). You can add your own with a JSON file (see [map 제작.md](map%20제작.md), written so an LLM can create maps for you), up to 9 maps in total.
 - Day and night cycle with a chosen time zone and day length (3 / 6 / 9 / 12 / 24 hours).
 - Real ambience recordings (wind, crickets, forest), a music player (YouTube playlist, local files, URLs) with a 10-band equalizer.
-- 9 playable characters (Quaternius, CC0) that move with the clips stored in their own files (idle, walk, sit down). A code-driven pose can be chosen instead in the profile.
+- 9 playable characters (Quaternius, CC0) that move with the clips stored in their own files (idle, walk, sit down).
 
 Tech: TypeScript, Vite, three.js, Web Audio, a small Node HTTP server. No UI framework.
 
@@ -51,7 +51,7 @@ To try it on a phone on the same network, set `HOST=0.0.0.0` before starting the
 3. Icons: profile (top right: your name and character), community and settings (bottom left), volume and walk/sit (bottom right), music controls (bottom center).
 4. **Settings**: time zone, day length, map cards, wind volume and the bird toggle, music source (URL, folder, playlist file), equalizer.
 5. **Add a map**: press the dashed **+** card in the map list and choose a `.json` map file. The app takes a picture of the map for its card. The trash icon removes a map from the list; the file stays in `public/maps/added/`.
-6. **Profile**: name, character, and **Motion** (the model's own clips, or the built-in pose). For Mixamo characters the walk animation can be chosen too, with **Random** picking a new one each time the person rests and gets up.
+6. **Profile**: name and character. For Mixamo characters the walk animation can be chosen too, with **Random** picking a new one each time the person rests and gets up.
 
 ## Make your own map
 
