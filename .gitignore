@@ -15,3 +15,14 @@ public/models/person-f.glb
 public/maps/grassland/
 public/maps/snow-north/
 public/maps/salt-desert/
+
+# Stand-alone Android app: generated web copy and Gradle outputs
+app-www/
+public/app-index.json
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+*.apk

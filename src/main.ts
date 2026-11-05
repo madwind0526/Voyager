@@ -558,9 +558,22 @@ function tick(now: number) {
 // Sky pictures: every evening (and morning) one picture is drawn at random from a folder under public/sky: "day", and
 // "night" or the folder named by the map (the northern map uses "aurora"). A new map also gets new mountain shapes.
 const skyLists = new Map<string, string[]>();
+
+// The server lists characters, sky pictures and clips. The stand-alone phone app has no server, so those lists come from
+// app-index.json (written at build time) and the server-only controls (PC folders, community) are hidden.
+let appIndex: Promise<any> | undefined;
+async function listing<T>(api: string, fromIndex: (index: any) => T): Promise<T> {
+  try {
+    const r = await fetch(api);
+    if (r.ok && /json/.test(r.headers.get("content-type") ?? "")) return await r.json();
+  } catch { /* no server */ }
+  document.documentElement.classList.add("standalone");
+  appIndex ??= fetch("/app-index.json").then((r) => r.json());
+  return fromIndex(await appIndex);
+}
 async function skyList(folder: string) {
   if (!skyLists.has(folder)) {
-    try { skyLists.set(folder, await (await fetch(`/api/sky/${encodeURIComponent(folder)}`)).json()); } catch { skyLists.set(folder, []); } // no server: built-in sky
+    try { skyLists.set(folder, await listing(`/api/sky/${encodeURIComponent(folder)}`, (i) => i.sky[folder] ?? [])); } catch { skyLists.set(folder, []); } // nothing listed: built-in sky
   }
   return skyLists.get(folder)!;
 }
@@ -587,7 +600,7 @@ loadBuiltins().then(async () => {
   if (!CYCLES.includes(s.cycle)) s.cycle = 24;
   if (!allMaps().some((m) => m.id === s.mapId)) s.mapId = bMaps[0].id!;
   try {
-    const available = await (await fetch("/api/animations")).json();
+    const available = await listing("/api/animations", (i) => i.animations);
     if (Array.isArray(available.walk) && Array.isArray(available.dance)) animations = available;
   } catch { /* use the built-in default */ }
   const animationFiles = [...animations.walk, ...animations.dance];
@@ -598,7 +611,7 @@ loadBuiltins().then(async () => {
     save(s);
   }
   let peopleFiles: string[] = [];
-  try { peopleFiles = await (await fetch("/api/people")).json(); registerPeople(peopleFiles); } catch { /* no server: built-in people only */ }
+  try { peopleFiles = await listing("/api/people", (i) => i.people); registerPeople(peopleFiles); } catch { /* no server: built-in people only */ }
   const selected = BODIES.find((b) => b.id === s.body);
   const selectedFile = selected?.file.startsWith("/models/people/") ? decodeURIComponent(selected.file.slice("/models/people/".length)) : undefined;
   if (!selected || (selectedFile && !peopleFiles.includes(selectedFile))) {

@@ -149,3 +149,6 @@ body.studio { overflow: auto; }
 .card.mapcard.add svg { width: 30px; height: 30px; }
 .card.mapcard.add:hover { color: var(--fg); border-color: rgba(255, 255, 255, 0.5); }
 textarea.paste { width: 100%; min-height: 180px; resize: vertical; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); color: var(--fg); padding: 12px; font: 12px/1.5 ui-monospace, monospace; outline: none; }
+
+/* Stand-alone app (no server): hide what needs the PC */
+.standalone [aria-label="Community"], .standalone [aria-label="Choose folder"], .standalone [aria-label="Playlist file"] { display: none; }

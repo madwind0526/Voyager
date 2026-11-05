@@ -53,6 +53,20 @@ To try it on a phone on the same network, set `HOST=0.0.0.0` before starting the
 5. **Add a map**: press the dashed **+** card in the map list and choose a `.json` map file. The app takes a picture of the map for its card. The trash icon removes a map from the list; the file stays in `public/maps/added/` (the list itself lives in the browser, so if its data is cleared, add the files again with **+**).
 6. **Profile**: name and character. For Mixamo characters the walk animation can be chosen too, with **Random** picking a new one each time the person rests and gets up.
 
+## Android app (stand-alone, no server)
+
+The same app can be packaged as an Android app that runs entirely on the phone (Capacitor). Characters, sounds and sky pictures are bundled; settings and added maps are stored on the phone. Features that need the PC (choosing music folders from the PC, the community list) are hidden.
+
+Requirements: Android Studio (its JDK and SDK), a phone with USB debugging.
+
+```bash
+npm run app:build                  # web build without the heavy optional files, then `cap sync`
+cd android && gradlew.bat assembleDebug   # Windows; ./gradlew assembleDebug elsewhere
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Set `sdk.dir` in `android/local.properties` (not committed) and `JAVA_HOME` to Android Studio's `jbr` folder. The app icon is the Salt Desert card picture. The default music is a YouTube playlist; inside the app's web view it may not play, so choose a music URL in the settings if it stays silent.
+
 ## Make your own map
 
 Give [map 제작.md](map%20제작.md) to an LLM and ask for a map ("a foggy blue meadow at dawn"). Save its JSON answer as a `.json` file and add it with the **+** card. Samples are in `samples/maps/`. The field reference is in [docs/spec.md](docs/spec.md).
