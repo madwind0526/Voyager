@@ -65,7 +65,7 @@ cd android && gradlew.bat assembleDebug   # Windows; ./gradlew assembleDebug els
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Set `sdk.dir` in `android/local.properties` (not committed) and `JAVA_HOME` to Android Studio's `jbr` folder. The app icon is the Salt Desert card picture. The default music is a YouTube playlist; inside the app's web view it may not play, so choose a music URL in the settings if it stays silent.
+Set `sdk.dir` in `android/local.properties` (not committed) and `JAVA_HOME` to Android Studio's `jbr` folder. The app icon is the Salt Desert card picture. In the settings, the folder button opens the phone's folder chooser: every audio file below the chosen folder, sub-folders included, is played in order (or shuffled), and the choice is kept after the app is closed (the app asks once for permission to read music). The default music is a YouTube playlist; inside the app's web view it may not play, so choose a music URL in the settings if it stays silent.
 
 ## Make your own map
 

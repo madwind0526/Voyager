@@ -13,6 +13,12 @@ import { BODIES, registerPeople } from "./bodies";
 import { thumb } from "./thumbs";
 import { DEFAULT_CLOTHES } from "./catalog";
 import { World } from "./world";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+
+// Android app only (android/.../FolderMusicPlugin.java): pick a folder of the phone and list every audio file below it.
+const FolderMusic = registerPlugin<{ pickFolder(): Promise<{ path: string }>; listAudio(o: { path: string }): Promise<{ files: string[] }> }>("FolderMusic");
+const isApp = Capacitor.isNativePlatform();
+const fileUrl = (path: string) => Capacitor.convertFileSrc("file://" + path.split("/").map(encodeURIComponent).join("/"));
 
 const CYCLES = [3, 6, 9, 12, 24];
 const ANIMATION_LABELS: Record<string, string> = {
@@ -68,7 +74,13 @@ let localLabel = "";
 // Source priority: files picked on this device (session only) > folder/list picked in the explorer > URLs > default.
 async function applyMusic() {
   if (local.length) return sound.setPlaylist(local, DEFAULT_TRACK);
-  if (s.musicPath) {
+  if (s.musicPath.startsWith("phone:")) {
+    try {
+      const { files } = await FolderMusic.listAudio({ path: s.musicPath.slice(6) });
+      const sorted = files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      if (sorted.length) return sound.setPlaylist(sorted.map(fileUrl), DEFAULT_TRACK);
+    } catch { /* permission refused or folder gone: fall through to the URL list */ }
+  } else if (s.musicPath) {
     try {
       const urls: string[] = await (await fetch(`/api/fs/${s.musicKind === "dir" ? "tracks" : "m3u"}?path=${encodeURIComponent(s.musicPath)}`)).json();
       if (Array.isArray(urls) && urls.length) return sound.setPlaylist(urls, DEFAULT_TRACK);
@@ -396,7 +408,7 @@ function openSettings() {
     src.type = "text";
     src.placeholder = "https://";
     src.spellcheck = false;
-    const shown = () => (local.length ? localLabel : s.musicPath ? s.musicPath : s.playlist.join(" "));
+    const shown = () => (local.length ? localLabel : s.musicPath ? s.musicPath.replace(/^phone:/, "Phone: ") || "Phone" : s.playlist.join(" "));
     src.value = shown();
     const picked = () => local.length > 0 || !!s.musicPath;
     src.classList.toggle("picked", picked());
@@ -443,6 +455,19 @@ function openSettings() {
       f.click();
     };
     const choose = async (kind: "dir" | "list") => {
+      if (isApp && kind === "dir") {
+        // The whole folder, sub-folders included, stays chosen after the app is closed.
+        try {
+          const { path } = await FolderMusic.pickFolder();
+          local.forEach(URL.revokeObjectURL);
+          local = [];
+          s.musicPath = "phone:" + path;
+          s.musicKind = "phone";
+          save(s);
+          chosen();
+        } catch { /* cancelled */ }
+        return;
+      }
       if (!matchMedia("(pointer: coarse)").matches) {
         try {
           const r = await fetch(`/api/fs/list?path=${encodeURIComponent(kind === "dir" && s.musicKind === "dir" ? s.musicPath : "")}`);

@@ -20,7 +20,7 @@ export interface Settings {
   maps: Record<string, MapSpec>;
   pictures: Record<string, string>; // card pictures by map content, kept after a map is deleted so adding it again reuses its picture
   musicPath: string; // folder or playlist file chosen in the built-in explorer ("" = none)
-  musicKind: "dir" | "list";
+  musicKind: "dir" | "list" | "phone"; // "phone": a folder of this phone (Android app), musicPath is "phone:<relative folder>"
   eq: number[]; // 10 bands, -100..100
   eqPreset: string;
 }
