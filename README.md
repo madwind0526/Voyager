@@ -20,7 +20,7 @@ cd Voyager
 npm install
 ```
 
-Some assets are not in the repository (Mixamo characters and animations, sky photos). The app runs without them; see [docs/ASSETS.md](docs/ASSETS.md) for what to add. The CC0 characters are included in `public/models/people/backup/`: copy the `.glb` files up one folder to use them.
+Some assets are not in the repository (Mixamo characters and animations). The app runs without them; see [docs/ASSETS.md](docs/ASSETS.md) for what to add. The CC0 characters are included in `public/models/people/backup/`: copy the `.glb` files up one folder to use them.
 
 ## Run
 

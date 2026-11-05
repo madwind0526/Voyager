@@ -12,13 +12,7 @@ public/models/people/backup/*
 !public/models/people/backup/*.glb
 public/models/animations/**/*.fbx
 
-# Sky photos and map reference pictures: your own collection (the READMEs in each folder stay)
-public/sky/day/*
-!public/sky/day/README.txt
-public/sky/night/*
-!public/sky/night/README.txt
-public/sky/aurora/*
-!public/sky/aurora/README.txt
+# Map reference pictures: not needed to run the app
 public/maps/grassland/
 public/maps/snow-north/
 public/maps/salt-desert/
