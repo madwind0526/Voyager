@@ -30,7 +30,7 @@
 | `ground.reflect` | 0~1 | 0.85 | **salt만**: 거울 반사 세기 (높을수록 하늘이 선명하게 비친다) |
 | `ground.cracks` | 0~1 | 0.4 | **salt만**: 소금 땅의 갈라진 육각형 무늬 |
 | `ground.sea` | 0~1 | 0 | **sand만**: 걷는 방향의 **오른쪽에 바다**가 생긴다 (0 = 없음, 0.5 = 멀리 보이는 바다, 0.9 = 해안선이 바로 옆). 해안선에는 물결과 거품이 일고 왼쪽은 모래사장이다. 폰 화면은 좁아서 0.8 이상이어야 바다가 크게 보인다 |
-| `ground.pathStyle` | `dirt` / `road` | `dirt` | 길의 종류. `road`는 아스팔트 도로(양쪽 흰 선, 가운데 노란 겹선)이다. 도로는 `ground.path` 1, `pathColor` `#3a3c40` 정도로 한다 |
+| `ground.pathStyle` | `dirt` / `gravel` / `road` | `dirt` | 길의 종류. `dirt` 흙길(폭이 들쭉날쭉하고 가장자리에 풀이 번지며 가운데에 풀이 난다), `gravel` 자갈길(`pathColor` `#8f8a80`), `road` 아스팔트 도로(양쪽 흰 선, 가운데 노란 겹선, `ground.path` 1, `pathColor` `#3a3c40`). 자연스러운 풍경에는 `dirt`나 `gravel`을 권한다 |
 | `ground.flowers` | 0~4 | 1 | **grass만**: 들꽃의 양 (0 = 없음, 1 = 보통, 3 = 꽃밭) |
 | `ground.flowerColors` | `#rrggbb` 목록 (최대 4개) | 여섯 색 섞임 | **grass만**: 들꽃 색. 예: 민들레 노랑과 분홍 `["#ffd21a", "#c25bd6"]` |
 | `ground.path` | 0~1 | 0 | **grass, snow, sand 모두 가능**(흙길은 grass에 `pathColor` 갈색): 앞으로 곧게 난 길의 폭 (0 = 길 없음, 0.5 = 보통 오솔길, 1 = 넓은 길). 길은 화면 가운데에서 앞으로 뻗는다 |
@@ -89,6 +89,7 @@
 | 숲길 (고정 화면) | `grass`, `ground.path` 0.5, `scenery.trees` 0.8, `view.locked` true, `horizon.height` 0.45, `horizon.mountains` 0.9, `horizon.layout` ahead |
 | 바닷가 (오른쪽 바다, 왼쪽 모래) | `sand`, `ground.color` `#e6cf9f`, `ground.sea` 0.9, `view.locked` true, `horizon.height` 0.5, `horizon.mountains` 0.12 |
 | 자작나무 꽃밭 | `grass`, `ground.flowers` 3, `ground.flowerColors` 노랑·분홍, `scenery.treeType` birch, `scenery.trees` 0.45, `scenery.treeColor` `#9bd04a` |
+| 흙길 / 자갈길 | `grass`, `ground.path` 0.8, `ground.pathStyle` dirt 또는 gravel, `pathColor` `#8a6a45` 또는 `#8f8a80`, `view.locked` true |
 | 푸른 여름 초원 | `grass`, `ground.color` `#62b02a`, `horizon.color` `#4f9aa0`, `wind` 0.75 |
 | 가을 초원 | `grass`, `ground.color` `#c98a22`, `horizon.color` `#9a5a3c`, `haze` 0.3 |
 | 안개 낀 설원 | `snow`, `haze` 0.35, `clouds` 0.7, `horizon.snow` 0.9 |
@@ -397,6 +398,86 @@
   "ambience": {
     "wind": 0.35,
     "birds": 0.7,
+    "insects": 0.4
+  }
+}
+```
+
+### Dirt Track — 풀밭 사이의 흙길
+
+```json
+{
+  "schema": "voyager.map/1",
+  "name": "Dirt Track",
+  "ground": {
+    "kind": "grass",
+    "color": "#5f9a34",
+    "path": 0.8,
+    "pathColor": "#8a6a45",
+    "pathStyle": "dirt",
+    "flowers": 1.5
+  },
+  "sky": {
+    "clouds": 0.4,
+    "haze": 0.2,
+    "blue": 0.75
+  },
+  "horizon": {
+    "mountains": 0.35,
+    "color": "#4f7f8a",
+    "height": 0.45
+  },
+  "scenery": {
+    "trees": 0.7,
+    "treeColor": "#2f6b34",
+    "treeType": "fir"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.4
+  }
+}
+```
+
+### Gravel Path — 자갈길
+
+```json
+{
+  "schema": "voyager.map/1",
+  "name": "Gravel Path",
+  "ground": {
+    "kind": "grass",
+    "color": "#5f9a34",
+    "path": 0.8,
+    "pathColor": "#8f8a80",
+    "pathStyle": "gravel",
+    "flowers": 1.5
+  },
+  "sky": {
+    "clouds": 0.4,
+    "haze": 0.2,
+    "blue": 0.75
+  },
+  "horizon": {
+    "mountains": 0.35,
+    "color": "#4f7f8a",
+    "height": 0.45
+  },
+  "scenery": {
+    "trees": 0.7,
+    "treeColor": "#2f6b34",
+    "treeType": "fir"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
     "insects": 0.4
   }
 }

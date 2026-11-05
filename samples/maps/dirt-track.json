@@ -1,0 +1,35 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Dirt Track",
+  "ground": {
+    "kind": "grass",
+    "color": "#5f9a34",
+    "path": 0.8,
+    "pathColor": "#8a6a45",
+    "pathStyle": "dirt",
+    "flowers": 1.5
+  },
+  "sky": {
+    "clouds": 0.4,
+    "haze": 0.2,
+    "blue": 0.75
+  },
+  "horizon": {
+    "mountains": 0.35,
+    "color": "#4f7f8a",
+    "height": 0.45
+  },
+  "scenery": {
+    "trees": 0.7,
+    "treeColor": "#2f6b34",
+    "treeType": "fir"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.4
+  }
+}

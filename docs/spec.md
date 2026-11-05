@@ -41,7 +41,7 @@ All fields except `schema` and `name` are optional (0..1 unless noted).
 | `sky.aurora` `sky.nightPhotos` | aurora strength 0-1; night picture folder under `public/sky` (default `night`) |
 | `horizon.height` | 0.1-0.9: where the horizon sits, as a fraction of the screen height from the bottom (default 0.4) |
 | `horizon.layout` | `valley` (high sides, low middle) or `ahead` (one big mountain straight ahead) |
-| `ground.pathStyle` | `dirt` or `road` (asphalt with lane lines) |
+| `ground.pathStyle` | `dirt`, `gravel` or `road` (asphalt with lane lines) |
 | `ground.flowers` `ground.flowerColors` | wildflower amount 0-4 and up to 4 colors (grass) |
 | `scenery.treeType` | `fir`, `spruce`, `birch` or `broadleaf` |
 | `ground.sea` | sand maps: the sea lies to the right of the walking direction, 0-1 (shoreline distance), with foam and swells |

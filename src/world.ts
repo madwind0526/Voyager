@@ -194,6 +194,7 @@ const groundShader = {
     uBase: { value: new THREE.Color("#e8f0f4") }, uHaze: { value: new THREE.Color() },
     uReflect: { value: 0.85 }, uCracks: { value: 0.4 }, uLight: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uKind: { value: 0 }, // uKind: 0 salt mirror, 1 meadow, 2 snow, 3 sand
     uCam: { value: new THREE.Vector3() }, uOffset: { value: new THREE.Vector2() },
+    uGravel: { value: 0 }, // 1: the path is gravel
     uRoad: { value: 0 }, // 1: the path is an asphalt road with lane lines
     uSea: { value: 0 }, // sand maps: how close the sea on the right comes (0 = none)
     uPath: { value: 0 }, uPathCol: { value: new THREE.Color("#7a6040") }, // half-width of a straight path along the walking direction (0 = none)
@@ -209,7 +210,7 @@ const groundShader = {
     }`,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse; uniform vec3 uBase, uCam, uHaze;
-    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea, uRoad; uniform vec2 uOffset; uniform vec3 uPathCol;
+    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea, uRoad, uGravel; uniform vec2 uOffset; uniform vec3 uPathCol;
     varying vec4 vUv; varying vec3 vWorld;
     ${GLSL_NOISE}
     float edge(vec2 p){
@@ -304,12 +305,31 @@ const groundShader = {
         road = mix(road, vec3(0.95, 0.75, 0.1) * lit, smoothstep(0.06, 0.02, abs(ax - 0.1)) * 0.9);
         base = mix(base, road, pm);
       } else if (uPath > 0.0 && uKind > 0.5) {
-        // A worn path straight ahead: ragged edges, two faint wheel ruts, a little mottling.
-        float ragged = (noise(vec2(w.y * 0.35, 3.0)) - 0.5) * 0.7 + (noise(w * 2.5) - 0.5) * 0.25;
-        float pm = 1.0 - smoothstep(-0.3, 0.3, abs(w.x) - (uPath + ragged));
-        float rut = 1.0 - 0.2 * exp(-pow((abs(w.x) - 0.45) / 0.16, 2.0));
-        vec3 pc = uPathCol * (uLight * 1.3 + 0.12 * uNight) * rut * (0.85 + 0.3 * noise(w * 7.0));
-        base = mix(base, pc, pm);
+        // A natural track: a width that wanders, soft ragged edges where the grass creeps in, a strip of grass down the
+        // middle, patchy color, pebbles, and (gravel) a grain of small stones.
+        float lit = uLight * 1.3 + 0.12 * uNight;
+        float hw = uPath * (0.8 + 0.4 * noise(vec2(w.y * 0.09, 5.0))) + (noise(vec2(w.y * 0.8, 1.0)) - 0.5) * 0.5;
+        float rag = (noise(w * 1.7) - 0.5) * 0.9 + (noise(w * 6.0) - 0.5) * 0.35;
+        float d = abs(w.x) - hw - rag;
+        float pm = 1.0 - smoothstep(-0.5, 0.45, d);                       // wide, soft transition into the grass
+        pm *= 1.0 - 0.5 * smoothstep(0.35, 0.6, noise(w * 3.0 + 9.0)) * smoothstep(-0.9, 0.0, d); // grass patches near the edge
+        float mid = smoothstep(0.55, 0.75, noise(vec2(w.x * 2.2 + 4.0, w.y * 0.5))) * (1.0 - smoothstep(0.0, 0.8 * uPath, abs(w.x - 0.0))) * step(1.2, uPath); // a grass strip between the wheel lines
+        pm *= 1.0 - 0.7 * mid;
+        float rut = 1.0 - 0.22 * exp(-pow((abs(w.x) - 0.5 * min(uPath, 1.1)) / 0.2, 2.0));
+        float patchy = 0.78 + 0.35 * noise(w * 0.9) + 0.18 * noise(w * 5.0);
+        vec3 pc = uPathCol * patchy * rut;
+        vec2 cell = floor(w * 34.0);
+        float round = smoothstep(0.42, 0.18, length(fract(w * 34.0) - 0.5 + (vec2(hash(cell + 2.1), hash(cell + 5.9)) - 0.5) * 0.3)); // round, not square
+        float pebble = step(0.84, hash(cell)) * (0.6 + 0.8 * hash(cell + 7.7)) * round;
+        pc = mix(pc, pc * 1.7 + 0.04, pebble * 0.55);                       // light pebbles
+        pc = mix(pc, pc * 0.45, step(0.92, hash(cell + 3.3)) * 0.8 * round);        // dark ones
+        if (uGravel > 0.5) {
+          vec2 gc = floor(w * 70.0);
+          float st = hash(gc) * smoothstep(0.55, 0.2, length(fract(w * 70.0) - 0.5)) + 0.3;
+          vec3 stone = mix(vec3(0.55, 0.52, 0.47), vec3(0.78, 0.74, 0.66), hash(gc + 1.3)) * mix(0.55, 1.1, st);
+          pc = mix(pc, stone * (uPathCol.r + uPathCol.g + uPathCol.b) * 1.1, 0.75);
+        }
+        base = mix(base, pc * lit, pm);
       }
       // Salt under a film of water: strong mirror at grazing angles, a bit of salt showing below.
       float k = uKind < 0.5 ? clamp(uReflect * mix(0.55, 1.0, fres) + fres * 0.4, 0.0, 1.0) : clamp(uReflect * fres, 0.0, 0.3);
@@ -517,10 +537,10 @@ export class World {
     g.instanceCount = N;
     const mat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
-      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE }, uPath: this.gu.uPath, uFlowers: this.flowerAmt, uFlN: this.flowerN, uFl: this.flowerCols },
+      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE }, uPath: this.gu.uPath, uRoad: this.gu.uRoad, uFlowers: this.flowerAmt, uFlN: this.flowerN, uFl: this.flowerCols },
       vertexShader: /* glsl */ `
         attribute vec2 aOff; attribute vec3 aRand;
-        uniform vec2 uOffset; uniform float uTime, uWind, uTile, uPath, uFlowers, uFlN; uniform vec3 uFl[4];
+        uniform vec2 uOffset; uniform float uTime, uWind, uTile, uPath, uFlowers, uFlN, uRoad; uniform vec3 uFl[4];
         varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
         void main(){
           // Each blade repeats every uTile meters; this picks the copy nearest to the avatar, which stands at the origin.
@@ -552,7 +572,7 @@ export class World {
           float cut = fract(aRand.x * 91.7 + aRand.y * 37.1 + aRand.z * 13.3);
           // Tufts: slowly varying density leaves thin patches between thick clumps.
           float clump = smoothstep(-1.1, 0.4, sin(pat.x * 0.37) * sin(pat.y * 0.41) + 0.5 * sin(pat.x * 0.9 + pat.y * 0.7));
-          if (cut < smoothstep(7.0, 11.5, vDist) || fract(cut * 7.13) > 0.25 + 0.75 * clump || (uPath > 0.0 && abs(pat.x) < uPath + 0.35)) gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // none on the path
+          if (cut < smoothstep(7.0, 11.5, vDist) || fract(cut * 7.13) > 0.25 + 0.75 * clump || (uPath > 0.0 && abs(pat.x) < uPath * 0.55 + (uRoad > 0.5 ? uPath * 0.45 + 0.35 : 1.1 * fract(cut * 3.7)))) gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // none on the path
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uCol; uniform float uLight; varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
@@ -837,6 +857,7 @@ export class World {
     this.flowerN.value = fc.length;
     fc.forEach((c, i) => this.flowerCols.value[i].set(c));
     this.gu.uRoad.value = m.ground.pathStyle === "road" ? 1 : 0;
+    this.gu.uGravel.value = m.ground.pathStyle === "gravel" ? 1 : 0;
     this.gu.uPath.value = (m.ground.path ?? 0) * 3.5; // half-width in meters: up to 3.5 m
     this.gu.uPathCol.value.set(m.ground.pathColor ?? "#7a6040");
     this.treeDens.value = m.scenery?.trees ?? 0;
