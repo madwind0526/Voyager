@@ -5,6 +5,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { WALK_SPEED } from "./config";
 import { Person, type Motion } from "./avatar";
 import { BODIES } from "./bodies";
@@ -193,6 +194,8 @@ const groundShader = {
     uBase: { value: new THREE.Color("#e8f0f4") }, uHaze: { value: new THREE.Color() },
     uReflect: { value: 0.85 }, uCracks: { value: 0.4 }, uLight: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uKind: { value: 0 }, // uKind: 0 salt mirror, 1 meadow, 2 snow, 3 sand
     uCam: { value: new THREE.Vector3() }, uOffset: { value: new THREE.Vector2() },
+    uSea: { value: 0 }, // sand maps: how close the sea on the right comes (0 = none)
+    uPath: { value: 0 }, uPathCol: { value: new THREE.Color("#7a6040") }, // half-width of a straight path along the walking direction (0 = none)
   },
   vertexShader: `
     uniform mat4 textureMatrix;
@@ -205,7 +208,7 @@ const groundShader = {
     }`,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse; uniform vec3 uBase, uCam, uHaze;
-    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind; uniform vec2 uOffset;
+    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea; uniform vec2 uOffset; uniform vec3 uPathCol;
     varying vec4 vUv; varying vec3 vWorld;
     ${GLSL_NOISE}
     float edge(vec2 p){
@@ -270,6 +273,33 @@ const groundShader = {
         base = uBase * (uLight * 1.7 + 0.14 + 0.5 * uNight) * mix(lee, sunny, clamp(0.55 + 0.5 * ss, 0.0, 1.0)) * (0.85 + 0.25 * d0);
         vec2 gs = floor(w * 80.0);
         base += vec3(1.0, 0.9, 0.7) * step(0.992, hash(gs)) * (1.0 - smoothstep(1.0, 12.0, dist)) * 0.6 * uLight; // a few glinting grains
+        if (uSea > 0.0) {
+          // A beach: the sea lies to the right of the walking direction, with a wavering shoreline.
+          float shore = mix(9.0, 1.8, uSea) + (noise(vec2(w.y * 0.05, 7.0)) - 0.5) * 3.0 + (noise(vec2(w.y * 0.4, 1.0)) - 0.5) * 0.6;
+          float sd = w.x - shore;                       // beyond 0 = water
+          float lap = 0.5 + 0.5 * cos(6.2831853 * fract(uTime * 0.07)); // the water creeps up the sand and falls back
+          float wet = smoothstep(-2.4 - 0.8 * lap, 0.0, sd);
+          base = mix(base, base * vec3(0.58, 0.55, 0.5), wet * (1.0 - smoothstep(0.0, 0.25, sd)));
+          float depth = smoothstep(0.0, 1.0, clamp(sd / 16.0, 0.0, 1.0));
+          // Swell lines rolling toward the shore, bent by noise so they are not straight stripes.
+          float ph = fract(w.x * 0.11 + uTime * 0.1 + noise(vec2(w.x * 0.15, w.y * 0.12)) * 0.6);
+          float wave = 0.5 + 0.5 * cos(6.2831853 * ph);
+          vec3 water = mix(vec3(0.36, 0.78, 0.76), vec3(0.03, 0.26, 0.5), depth) * (uLight * 1.4 + 0.1 * uNight) * (0.8 + 0.4 * wave);
+          water = mix(water, uHaze * 0.9, (0.05 + 0.4 * fres) * (0.3 + 0.7 * depth)); // the sky on the water
+          float crest = smoothstep(0.9, 1.0, wave) * smoothstep(0.45, 0.7, noise(w * vec2(0.5, 0.7) + uTime * 0.15)) * (0.3 + 0.7 * (1.0 - depth));
+          float foamW = 0.35 + 1.1 * lap + 0.5 * noise(vec2(w.y * 1.3, uTime * 0.2));
+          float foam = (1.0 - smoothstep(0.0, foamW, sd)) * (0.6 + 0.4 * noise(w * 3.0));
+          water = mix(water, vec3(1.0) * (uLight * 1.5 + 0.1 * uNight), clamp(foam + crest * 0.8, 0.0, 1.0));
+          base = mix(base, water, smoothstep(-0.08, 0.08, sd));
+        }
+      }
+      if (uPath > 0.0 && uKind > 0.5) {
+        // A worn path straight ahead: ragged edges, two faint wheel ruts, a little mottling.
+        float ragged = (noise(vec2(w.y * 0.35, 3.0)) - 0.5) * 0.7 + (noise(w * 2.5) - 0.5) * 0.25;
+        float pm = 1.0 - smoothstep(-0.3, 0.3, abs(w.x) - (uPath + ragged));
+        float rut = 1.0 - 0.2 * exp(-pow((abs(w.x) - 0.45) / 0.16, 2.0));
+        vec3 pc = uPathCol * (uLight * 1.3 + 0.12 * uNight) * rut * (0.85 + 0.3 * noise(w * 7.0));
+        base = mix(base, pc, pm);
       }
       // Salt under a film of water: strong mirror at grazing angles, a bit of salt showing below.
       float k = uKind < 0.5 ? clamp(uReflect * mix(0.55, 1.0, fres) + fres * 0.4, 0.0, 1.0) : clamp(uReflect * fres, 0.0, 0.3);
@@ -363,6 +393,11 @@ export class World {
   private plain!: THREE.Mesh; // meadow and snow: the same ground shader without the mirror pass
   private grass!: THREE.Mesh;
   private grassWind!: THREE.IUniform;
+  private trees!: THREE.Mesh; // conifers on both sides of a path
+  private treeDens = { value: 0 };
+  private treeCol = { value: new THREE.Color("#2f5d2a") };
+  private locked = false; // the map fixes the camera (no turning, no tilting)
+  private horizonH = 0.4; // where the horizon sits, as a fraction of the screen height from the bottom
   private printMesh!: THREE.InstancedMesh;
   private flakes!: THREE.Points;
   private snowAmt = { value: 0 }; // snowfall strength, eased toward a random target
@@ -422,6 +457,7 @@ export class World {
     this.plain.visible = false;
     this.scene.add(this.plain);
     this.makeGrass();
+    this.makeTrees();
     this.makePrints();
 
     const RS = 720, RR = 90;
@@ -464,10 +500,10 @@ export class World {
     g.instanceCount = N;
     const mat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
-      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE } },
+      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE }, uPath: this.gu.uPath },
       vertexShader: /* glsl */ `
         attribute vec2 aOff; attribute vec3 aRand;
-        uniform vec2 uOffset; uniform float uTime, uWind, uTile;
+        uniform vec2 uOffset; uniform float uTime, uWind, uTile, uPath;
         varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
         void main(){
           // Each blade repeats every uTile meters; this picks the copy nearest to the avatar, which stands at the origin.
@@ -499,7 +535,7 @@ export class World {
           float cut = fract(aRand.x * 91.7 + aRand.y * 37.1 + aRand.z * 13.3);
           // Tufts: slowly varying density leaves thin patches between thick clumps.
           float clump = smoothstep(-1.1, 0.4, sin(pat.x * 0.37) * sin(pat.y * 0.41) + 0.5 * sin(pat.x * 0.9 + pat.y * 0.7));
-          if (cut < smoothstep(7.0, 11.5, vDist) || fract(cut * 7.13) > 0.25 + 0.75 * clump) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+          if (cut < smoothstep(7.0, 11.5, vDist) || fract(cut * 7.13) > 0.25 + 0.75 * clump || (uPath > 0.0 && abs(pat.x) < uPath + 0.35)) gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // none on the path
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uCol; uniform float uLight; varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
@@ -526,6 +562,92 @@ export class World {
     this.grass.frustumCulled = false;
     this.grass.visible = false;
     this.scene.add(this.grass);
+  }
+
+  // Conifers scattered over a wide tile that repeats around the walker, leaving the path clear. Each tree has a tapering
+  // trunk and five drooping tiers; the needles are a noise pattern, the undersides of the tiers are in shadow.
+  private makeTrees() {
+    const N = 1300, TILE = 160, TIERS = 5;
+    const piece = (g: THREE.BufferGeometry, part: number, shade: number[] | null, tier: number) => {
+      const flat = g.index ? g.toNonIndexed() : g;
+      const n = flat.attributes.position.count;
+      flat.setAttribute("aPart", new THREE.BufferAttribute(new Float32Array(n).fill(part), 1));
+      flat.setAttribute("aTier", new THREE.BufferAttribute(new Float32Array(n).fill(tier), 1));
+      flat.setAttribute("aShade", new THREE.BufferAttribute(new Float32Array(shade ?? new Array(n).fill(1)), 1));
+      return flat;
+    };
+    const parts: THREE.BufferGeometry[] = [];
+    const trunk = new THREE.CylinderGeometry(0.03, 0.06, 0.55, 7); trunk.translate(0, 0.27, 0);
+    parts.push(piece(trunk, 0, null, 0));
+    for (let i = 0; i < TIERS; i++) {
+      const r = 0.52 * (1 - i * 0.16), h = 0.46 - i * 0.03, base = 0.16 + i * 0.17;
+      const cone = new THREE.ConeGeometry(r, h, 9, 1, false);
+      cone.rotateY(i * 0.7); // so the tiers do not line up
+      cone.translate(0, base + h / 2, 0);
+      const pos = cone.attributes.position;
+      const shade: number[] = [];
+      const ni = cone.index ? cone.toNonIndexed() : cone;
+      for (let v = 0; v < ni.attributes.position.count; v++) shade.push(Math.min(1, Math.max(0, (ni.attributes.position.getY(v) - base) / h))); // 0 at the rim, 1 at the tip
+      void pos;
+      parts.push(piece(ni, 1, shade, (i + 0.5) / TIERS));
+    }
+    const merged = mergeGeometries(parts, false)!;
+    const g = new THREE.InstancedBufferGeometry();
+    g.index = null;
+    for (const k of ["position", "normal", "aPart", "aTier", "aShade"]) g.setAttribute(k, merged.getAttribute(k));
+    const off = new Float32Array(N * 2), rnd = new Float32Array(N * 3);
+    for (let i = 0; i < off.length; i++) off[i] = Math.random() * TILE;
+    for (let i = 0; i < rnd.length; i++) rnd[i] = Math.random();
+    g.setAttribute("aOff", new THREE.InstancedBufferAttribute(off, 2));
+    g.setAttribute("aRand", new THREE.InstancedBufferAttribute(rnd, 3));
+    g.instanceCount = N;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uOffset: this.gu.uOffset, uLight: this.gu.uLight, uHaze: this.gu.uHaze, uPath: this.gu.uPath, uTile: { value: TILE }, uDens: this.treeDens, uTreeCol: this.treeCol, uTime: this.gu.uTime },
+      vertexShader: /* glsl */ `
+        attribute vec2 aOff; attribute vec3 aRand; attribute float aPart, aTier, aShade;
+        uniform vec2 uOffset; uniform float uTile, uPath, uDens, uTime;
+        varying float vPart, vDist, vTier, vShade, vLight, vTint; varying vec3 vLocal;
+        void main(){
+          vec2 pat = aOff + uTile * floor((uOffset - aOff) / uTile + 0.5);
+          vec2 sc = pat - uOffset;
+          float dist = length(sc);
+          float size = 4.5 + 6.0 * aRand.x;                    // 4.5 - 10.5 m tall
+          float wide = 0.8 + 0.5 * fract(aRand.x * 7.3 + aRand.y * 3.1); // some trees slim, some broad
+          // Not on the path, not too many (density), not beyond the view distance.
+          float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.8 + 2.0 * aRand.y) + step(115.0, dist);
+          vec3 p = position;
+          p.xz *= wide;
+          // A very small sway in the wind that grows toward the top.
+          float sway = sin(uTime * 0.8 + aRand.y * 20.0) * 0.012 * p.y;
+          p.x += sway;
+          vec3 world = vec3(sc.x, 0.0, sc.y) + p * size * (gone > 0.0 ? 0.0 : 1.0);
+          vLight = 0.4 + 0.6 * max(dot(normalize(normal), normalize(vec3(0.4, 0.8, 0.3))), 0.0);
+          vPart = aPart; vDist = dist; vTier = aTier; vShade = aShade; vTint = aRand.y; vLocal = position;
+          gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uTreeCol, uHaze; uniform float uLight;
+        varying float vPart, vDist, vTier, vShade, vLight, vTint; varying vec3 vLocal;
+        ${GLSL_NOISE}
+        void main(){
+          // Needle clusters: fine noise across the cone surface, with dark gaps between the clusters.
+          float clump = fbm(vec2(vLocal.x * 26.0 + vLocal.z * 19.0, vLocal.y * 38.0 + vTint * 9.0));
+          float tiers = 0.45 + 0.55 * smoothstep(0.0, 0.55, vShade);       // the underside of every tier is in shadow
+          float height = 0.7 + 0.5 * vTier;                                 // the crown is lighter than the skirt
+          vec3 foliage = uTreeCol * (0.75 + 0.5 * vTint) * mix(0.5, 1.25, clump) * tiers * height;
+          foliage = mix(foliage, foliage * vec3(1.25, 1.2, 0.8), smoothstep(0.75, 1.0, vShade) * 0.5); // sunlit tips
+          vec3 bark = vec3(0.24, 0.16, 0.1) * (0.7 + 0.5 * fbm(vec2(vLocal.x * 80.0, vLocal.y * 14.0)));
+          vec3 col = mix(bark, foliage, vPart) * vLight * uLight * 1.7;
+          col = mix(col, uHaze, smoothstep(30.0, 110.0, vDist) * 0.88);  // distance haze
+          gl_FragColor = vec4(col, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    });
+    this.trees = new THREE.Mesh(g, mat);
+    this.trees.frustumCulled = false;
+    this.trees.visible = false;
+    this.scene.add(this.trees);
   }
 
   // Concave snow impressions with a shaded bowl and a softly raised rim.
@@ -636,7 +758,7 @@ export class World {
     const c = this.canvas;
     c.addEventListener("pointerdown", (e) => { last = { x: e.clientX, y: e.clientY }; c.setPointerCapture(e.pointerId); });
     c.addEventListener("pointermove", (e) => {
-      if (!last) return;
+      if (!last || this.locked) return;
       this.yaw -= (e.clientX - last.x) * 0.006;
       this.pitch = Math.min(0.7, Math.max(-0.12, this.pitch + (e.clientY - last.y) * 0.004));
       last = { x: e.clientX, y: e.clientY };
@@ -670,6 +792,15 @@ export class World {
     this.snowLeft = 0;
     this.prints = [];
     this.grassWind.value = 0.35 + m.ambience.wind * 0.9;
+    this.gu.uSea.value = kind === 3 ? (m.ground.sea ?? 0) : 0;
+    this.gu.uPath.value = (m.ground.path ?? 0) * 3.5; // half-width in meters: up to 3.5 m
+    this.gu.uPathCol.value.set(m.ground.pathColor ?? "#7a6040");
+    this.treeDens.value = m.scenery?.trees ?? 0;
+    this.treeCol.value.set(m.scenery?.treeColor ?? "#2f5d2a");
+    this.trees.visible = this.treeDens.value > 0;
+    this.locked = m.view?.locked === true;
+    if (this.locked) this.pos.x = 0; // a fixed view walks straight ahead: start in the middle of the path
+    this.horizonH = m.horizon.height ?? 0.4;
     this.gu.uBase.value.set(m.ground.color);
     this.gu.uReflect.value = kind === 3 ? 0.03 : m.ground.reflect;
     this.gu.uCracks.value = kind === 0 ? m.ground.cracks : 0;
@@ -736,7 +867,10 @@ export class World {
       for (let i = 0; i <= RS; i++) {
         const a = (i / RS) * Math.PI * 2 - Math.PI, x = r * Math.cos(a), z = r * Math.sin(a);
         const front = Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2));
-        const env = Math.max(0.2, 0.3 + 0.85 * Math.exp(-(((front + 0.3) / 0.2) ** 2)) + 0.9 * Math.exp(-(((front - 0.32) / 0.2) ** 2)) - 0.2 * Math.exp(-((front / 0.1) ** 2)));
+        const ahead = this.map?.horizon.layout === "ahead"; // a mountain straight ahead instead of a valley between two
+        const env = ahead
+          ? Math.max(0.25, 0.3 + 1.25 * Math.exp(-((front / 0.26) ** 2)) + 0.35 * (Math.exp(-(((front + 0.6) / 0.25) ** 2)) + Math.exp(-(((front - 0.6) / 0.25) ** 2))))
+          : Math.max(0.2, 0.3 + 0.85 * Math.exp(-(((front + 0.3) / 0.2) ** 2)) + 0.9 * Math.exp(-(((front - 0.32) / 0.2) ** 2)) - 0.2 * Math.exp(-((front / 0.1) ** 2)));
         const mask = Math.min(1, Math.max(0, (r - R0) / (R0 * 0.8)));
         const h = env * r * (meadow ? 0.11 + 0.15 * s : 0.14 + 0.2 * s) * Math.pow(ridged(x, z), meadow ? 0.95 : 1.4) * mask * 1.5;
         pos.setXYZ(j * (RS + 1) + i, x, h - 2 * (1 - mask), z);
@@ -800,6 +934,7 @@ export class World {
 
   update(dt: number, hour: number) {
     if (this.rangeDirty) this.newScenery();
+    if (this.locked) { this.yaw = 0; this.pitch = 0.12; } // a fixed view: always facing straight ahead
     this.t += dt;
     this.sit += ((this.sitting ? 1 : 0) - this.sit) * Math.min(1, dt * 5);
     const moving = this.walking && !this.sitting;
@@ -829,7 +964,8 @@ export class World {
     const bx = Math.sin(this.yaw), bz = Math.cos(this.yaw);
     this.camera.position.set(bx * Math.cos(p) * d, 1.0 + Math.sin(p) * d, bz * Math.cos(p) * d);
     // Look up a little so the horizon sits about a third of the way up the screen and the sky fills the rest.
-    const tilt = 0.12 - (p - 0.12) * 0.6;
+    // The camera looks up by `tilt`, which puts the horizon `horizonH` of the screen height above the bottom edge (vertical field of view 60 degrees).
+    const tilt = Math.atan((1 - 2 * this.horizonH) * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) - (p - 0.12) * 0.6;
     const c = this.camera.position;
     this.camera.lookAt(c.x + fx * 10, c.y + Math.tan(tilt) * 10, c.z + fz * 10);
     this.sky.position.copy(this.camera.position);

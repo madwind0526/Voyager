@@ -32,10 +32,10 @@ test("bad content is rejected", () => {
 });
 
 // The authoring guide and the sample maps must always be valid, and use only the documented keys.
-const ALLOWED = { "": ["schema", "name", "author", "ground", "sky", "horizon", "ambience"], ground: ["kind", "color", "reflect", "cracks"], sky: ["clouds", "stars", "haze", "blue", "aurora", "nightPhotos"], horizon: ["mountains", "color", "snow", "trees"], ambience: ["wind", "birds", "insects"] };
+const ALLOWED = { "": ["schema", "name", "author", "ground", "sky", "horizon", "ambience", "scenery", "view"], scenery: ["trees", "treeColor"], view: ["locked"], ground: ["kind", "color", "reflect", "cracks", "path", "pathColor", "sea"], sky: ["clouds", "stars", "haze", "blue", "aurora", "nightPhotos"], horizon: ["mountains", "color", "snow", "trees", "height", "layout"], ambience: ["wind", "birds", "insects"] };
 const onlyKnownKeys = (m) => {
   for (const k of Object.keys(m)) assert.ok(ALLOWED[""].includes(k), `unknown key ${k}`);
-  for (const g of ["ground", "sky", "horizon", "ambience"]) for (const k of Object.keys(m[g] ?? {})) assert.ok(ALLOWED[g].includes(k), `unknown key ${g}.${k}`);
+  for (const g of ["ground", "sky", "horizon", "ambience", "scenery", "view"]) for (const k of Object.keys(m[g] ?? {})) assert.ok(ALLOWED[g].includes(k), `unknown key ${g}.${k}`);
 };
 
 test("sample maps are valid", () => {

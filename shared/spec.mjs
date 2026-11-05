@@ -6,6 +6,7 @@ export const MAP_SCHEMA = "voyager.map/1";
 export const PARTS = ["top", "bottom", "shoes"];
 export const PATTERNS = ["solid", "stripe", "check", "dot"];
 export const GROUND_KINDS = ["salt", "grass", "snow", "sand"];
+export const LAYOUTS = ["valley", "ahead"];
 export const HATS = ["none", "cap", "beanie", "brim", "fedora"];
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -54,8 +55,11 @@ export function validateMap(input) {
   const s = input.sky ?? {};
   const h = input.horizon ?? {};
   const a = input.ambience ?? {};
-  for (const c of [g.color, h.color]) if (c !== undefined && !HEX.test(c)) return fail("bad color");
+  const sc = input.scenery ?? {};
+  const v = input.view ?? {};
+  for (const c of [g.color, h.color, g.pathColor, sc.treeColor]) if (c !== undefined && !HEX.test(c)) return fail("bad color");
   if (g.kind !== undefined && !GROUND_KINDS.includes(g.kind)) return fail("ground.kind is invalid");
+  if (h.layout !== undefined && !LAYOUTS.includes(h.layout)) return fail("horizon.layout is invalid");
   if (s.nightPhotos !== undefined && !/^[a-z0-9_-]{1,24}$/.test(s.nightPhotos)) return fail("sky.nightPhotos is invalid");
   return {
     ok: true,
@@ -63,9 +67,11 @@ export function validateMap(input) {
       schema: MAP_SCHEMA,
       name,
       author: text(input.author, 30),
-      ground: { kind: g.kind ?? "salt", color: g.color ?? "#e8f0f4", reflect: unit(g.reflect, 0.85), cracks: unit(g.cracks, 0.4) },
+      ground: { kind: g.kind ?? "salt", color: g.color ?? "#e8f0f4", reflect: unit(g.reflect, 0.85), cracks: unit(g.cracks, 0.4), path: unit(g.path, 0), sea: unit(g.sea, 0), pathColor: g.pathColor ?? "#7a6040" },
       sky: { clouds: unit(s.clouds, 0.5), stars: unit(s.stars, 1), haze: unit(s.haze, 0.2), blue: unit(s.blue, 0.5), aurora: unit(s.aurora, 0), nightPhotos: s.nightPhotos ?? "night" },
-      horizon: { mountains: unit(h.mountains, 0.5), color: h.color ?? "#8a9bb5", snow: unit(h.snow, 0), trees: unit(h.trees, 0) },
+      horizon: { mountains: unit(h.mountains, 0.5), color: h.color ?? "#8a9bb5", snow: unit(h.snow, 0), trees: unit(h.trees, 0), height: isNum(h.height) ? clamp(h.height, 0.1, 0.9) : 0.4, layout: h.layout ?? "valley" },
+      scenery: { trees: unit(sc.trees, 0), treeColor: sc.treeColor ?? "#2f5d2a" },
+      view: { locked: v.locked === true },
       ambience: { wind: unit(a.wind, 0.4), birds: unit(a.birds, 0.4), insects: unit(a.insects, 0.4) },
     },
   };

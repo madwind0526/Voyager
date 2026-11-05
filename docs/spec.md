@@ -39,6 +39,12 @@ All fields except `schema` and `name` are optional (0..1 unless noted).
 |---|---|
 | `ground.kind` | `salt` (mirror), `grass` (swaying meadow), `snow` or `sand` (both leave footprints) |
 | `sky.aurora` `sky.nightPhotos` | aurora strength 0-1; night picture folder under `public/sky` (default `night`) |
+| `horizon.height` | 0.1-0.9: where the horizon sits, as a fraction of the screen height from the bottom (default 0.4) |
+| `horizon.layout` | `valley` (high sides, low middle) or `ahead` (one big mountain straight ahead) |
+| `ground.sea` | sand maps: the sea lies to the right of the walking direction, 0-1 (shoreline distance), with foam and swells |
+| `ground.path` `ground.pathColor` | a straight path ahead (width 0-1, color) on grass, snow and sand |
+| `scenery.trees` `scenery.treeColor` | trees on both sides of the path (density 0-1, leaf color) |
+| `view.locked` | `true` fixes the camera: no turning or tilting |
 | `horizon.trees` | dark conifer forest at the foot of the mountains 0-1 |
 | `horizon.snow` | snow cover on the mountains 0-1 |
 | `ground.color` `ground.reflect` `ground.cracks` | salt color, mirror strength, salt-polygon cracks |

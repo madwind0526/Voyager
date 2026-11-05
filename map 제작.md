@@ -29,6 +29,9 @@
 | `ground.color` | `#rrggbb` | `#e8f0f4` | 땅 색. salt: 소금 색, grass: 풀 색, snow: 눈 색조, sand: 모래 색 |
 | `ground.reflect` | 0~1 | 0.85 | **salt만**: 거울 반사 세기 (높을수록 하늘이 선명하게 비친다) |
 | `ground.cracks` | 0~1 | 0.4 | **salt만**: 소금 땅의 갈라진 육각형 무늬 |
+| `ground.sea` | 0~1 | 0 | **sand만**: 걷는 방향의 **오른쪽에 바다**가 생긴다 (0 = 없음, 0.5 = 멀리 보이는 바다, 0.9 = 해안선이 바로 옆). 해안선에는 물결과 거품이 일고 왼쪽은 모래사장이다. 폰 화면은 좁아서 0.8 이상이어야 바다가 크게 보인다 |
+| `ground.path` | 0~1 | 0 | **grass, snow, sand 모두 가능**(흙길은 grass에 `pathColor` 갈색): 앞으로 곧게 난 길의 폭 (0 = 길 없음, 0.5 = 보통 오솔길, 1 = 넓은 길). 길은 화면 가운데에서 앞으로 뻗는다 |
+| `ground.pathColor` | `#rrggbb` | `#7a6040` | 길의 색 (흙길 갈색, 눈길은 `#cfd8e6`, 모랫길은 땅보다 짙은 모래색) |
 | `sky.clouds` | 0~1 | 0.5 | 구름 양 (0 = 구름 없음, 1 = 가득) |
 | `sky.stars` | 0~1 | 1 | 밤의 별 밝기 |
 | `sky.haze` | 0~1 | 0.2 | 대기의 뿌연 정도 (높을수록 하늘이 우윳빛). 안개·먼지·아지랑이가 낀 날은 0.3 이상, 맑고 투명한 날은 0.1 이하. 맵 하나에는 한 가지 느낌만 고른다 |
@@ -36,9 +39,14 @@
 | `sky.aurora` | 0~1 | 0 | 밤하늘 오로라 세기 (0 = 없음) |
 | `sky.nightPhotos` | `night` 또는 `aurora` | `night` | 밤하늘 사진 폴더. 오로라 사진을 쓰려면 `aurora`. 다른 이름은 쓰지 않는다 |
 | `horizon.mountains` | 0~1 | 0.5 | 산 높이 (0 = 산 없음, 평평한 지평선). 낮은 언덕 0.3 / 보통 0.5 / 웅장한 산 0.8 |
-| `horizon.color` | `#rrggbb` | `#8a9bb5` | **salt, grass, sand만**: 산의 색. 앞쪽 산은 이 색을 어둡게, 먼 산은 안개에 섞여 옅어진다 |
+| `horizon.height` | 0.1~0.9 | 0.4 | **지평선의 높이**: 화면 아래쪽에서부터 화면 높이의 몇 %에 지평선이 오는가. 0.4 = 아래에서 40% 지점(기본), 0.7 = 70% 지점(땅이 넓게 보임), 0.2 = 20% 지점(하늘이 넓게 보임) |
+| `horizon.layout` | `valley` / `ahead` | `valley` | 산의 배치. `valley`는 양옆이 높고 가운데가 낮은 골짜기(기본), `ahead`는 **정면에 큰 산**이 서고 양옆이 낮다. 고정 화면(`view.locked`) 맵에서 길 끝의 산으로 쓴다 |
+| `horizon.color` | `#rrggbb` | `#8a9bb5` | **salt, grass, sand만** (`mountains`가 0이면 쓰이지 않으니 생략): 산의 색. 앞쪽 산은 이 색을 어둡게, 먼 산은 안개에 섞여 옅어진다 |
 | `horizon.snow` | 0~1 | 0 | **snow만**: 산의 눈 덮임 정도 |
 | `horizon.trees` | 0~1 | 0 | **snow만**: 산자락의 침엽수 숲 |
+| `scenery.trees` | 0~1 | 0 | 길 양옆에 서 있는 나무의 양 (0 = 없음, 0.5 = 듬성듬성, 1 = 빽빽한 숲). 길을 따라 걸으면 계속 나타난다. 땅이 소금 호수이면 쓰지 않는다 |
+| `scenery.treeColor` | `#rrggbb` | `#2f5d2a` | 나무 잎 색 (전나무 초록 `#2f6b34`, 가을 단풍 `#b5651d`) |
+| `view.locked` | `true` / `false` | `false` | `true`이면 **화면이 고정**된다. 마우스나 손가락으로 돌리거나 위아래로 움직일 수 없고, 항상 앞을 보며 곧게 걷는다. 길 양옆에 나무가 있는 맵처럼 한 방향 풍경에 쓴다 |
 | `ambience.wind` | 0~1 | 0.4 | 바람 소리와 구름·풀의 움직임 (약함 0.2 / 보통 0.4 / 강함 0.8) |
 | `ambience.birds` | 0~1 | 0.4 | 낮의 새소리 (거의 없음 0.05 / 가끔 0.2 / 많음 0.6) |
 | `ambience.insects` | 0~1 | 0.4 | 밤의 풀벌레 소리 (거의 없음 0 / 조금 0.2 / 가득 0.6). 0.5 이상이면 뚜렷하게 들린다 |
@@ -50,7 +58,17 @@
 - **sand (모래 사막)**: 바람이 만든 긴 모래언덕과 잔물결 무늬. 걸으면 발자국이 남는다. `ground.color`가 모래 색이다(황금빛 `#d9a95f`, 붉은 모래 `#c47a45`, 흰 모래 `#e8d8b8`). 풀은 없다. 산은 `horizon.color` 색의 언덕이고, 사막답게 붉은 갈색(`#9a5a3c`)이 잘 어울린다.
 - **snow (설원)**: 눈 쌓인 평원. 걸으면 뒤로 발자국이 남고 눈이 가끔 내린다. 산은 눈 덮인 봉우리와 어두운 바위, 산자락의 숲. `horizon.color`는 쓰이지 않는다.
 
+### 길 양옆에 나무가 선 맵 (고정 화면)
+
+`view.locked`를 `true`로 하고 `ground.path`(길)와 `scenery.trees`(나무)를 함께 쓴다. 화면이 고정되므로 사용자는 방향을 바꿀 수 없고 길을 따라 곧게 걷는다. 이때 `horizon.height`로 지평선 위치를 정해 구도를 잡는다(길이 먼 곳까지 보이게 하려면 0.45~0.6, 숲 속 느낌이면 0.35~0.45). 길 위로는 풀이 나지 않는다. 길 끝에 산을 세우려면 `horizon.layout`을 `ahead`로 하고 `horizon.mountains`를 0.8~1로 한다(정면에 큰 산이 보인다).
+
+### 바닷가 맵
+
+`ground.kind`를 `sand`로 하고 `ground.sea`를 0.8~0.9로 한다. 오른쪽에 바다, 왼쪽에 모래사장이 되고, 보통 `view.locked`를 `true`로 해서 해안선을 따라 곧게 걷게 한다. 산은 낮게(0.1~0.2) 두거나 0으로 하고, `horizon.height`는 0.45~0.55가 바다가 잘 보인다.
+
 ### 알아둘 것
+
+- 시간대(아침, 노을, 밤)는 앱이 정한다. 맵에서 "황금빛 오후"처럼 하루 중 한 시각을 고를 수는 없다. 비슷한 분위기는 `haze`와 땅 색으로 낸다.
 
 - 시간은 앱이 정한다. 같은 맵이 아침·낮·노을·밤으로 바뀌므로 **한 장면이 아니라 하루 전체**를 생각해 값을 정한다.
 - 땅은 항상 평평하다. 길이나 호수 같은 지형은 만들 수 없다.
@@ -64,6 +82,8 @@
 | 보랏빛 호수 | `salt`, `ground.color` `#f1e6ee`, `reflect` 0.95, `haze` 0.35, `horizon.color` `#5a46b8` |
 | 모래 사막 (먼지 낀 날) | `sand`, `ground.color` `#d9a95f`, `horizon.color` `#9a5a3c`, `haze` 0.35, `clouds` 0.15 |
 | 모래 사막 (맑고 고요한 날) | `sand`, `ground.color` `#c47a45`, `haze` 0.1, `wind` 0.15, `birds` 0.05, `mountains` 0.35 |
+| 숲길 (고정 화면) | `grass`, `ground.path` 0.5, `scenery.trees` 0.8, `view.locked` true, `horizon.height` 0.45, `horizon.mountains` 0.9, `horizon.layout` ahead |
+| 바닷가 (오른쪽 바다, 왼쪽 모래) | `sand`, `ground.color` `#e6cf9f`, `ground.sea` 0.9, `view.locked` true, `horizon.height` 0.5, `horizon.mountains` 0.12 |
 | 푸른 여름 초원 | `grass`, `ground.color` `#62b02a`, `horizon.color` `#4f9aa0`, `wind` 0.75 |
 | 가을 초원 | `grass`, `ground.color` `#c98a22`, `horizon.color` `#9a5a3c`, `haze` 0.3 |
 | 안개 낀 설원 | `snow`, `haze` 0.35, `clouds` 0.7, `horizon.snow` 0.9 |
@@ -269,6 +289,76 @@
 }
 ```
 
+### Forest Path — 길 양옆에 나무가 있는 고정 화면 맵
+
+```json
+{
+  "schema": "voyager.map/1",
+  "name": "Forest Path",
+  "ground": {
+    "kind": "grass",
+    "color": "#4f8a2a",
+    "path": 0.5,
+    "pathColor": "#7a6040"
+  },
+  "sky": {
+    "clouds": 0.4,
+    "haze": 0.25,
+    "blue": 0.7
+  },
+  "horizon": {
+    "mountains": 0.95,
+    "color": "#5a7a92",
+    "height": 0.45,
+    "layout": "ahead"
+  },
+  "scenery": {
+    "trees": 0.8,
+    "treeColor": "#2f6b34"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.4
+  }
+}
+```
+
+### Beach Walk — 오른쪽 바다와 왼쪽 모래사장 (고정 화면)
+
+```json
+{
+  "schema": "voyager.map/1",
+  "name": "Beach Walk",
+  "ground": {
+    "kind": "sand",
+    "color": "#e6cf9f",
+    "sea": 0.9
+  },
+  "sky": {
+    "clouds": 0.45,
+    "haze": 0.2,
+    "blue": 0.75
+  },
+  "horizon": {
+    "mountains": 0.12,
+    "color": "#6a8fa6",
+    "height": 0.5
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.5,
+    "birds": 0.6,
+    "insects": 0.1
+  }
+}
+```
+
 ### Violet Salt Lake — 보랏빛 호수
 
 ```json
@@ -315,4 +405,6 @@ LLM의 답에서 코드 블록만 복사해 `.json` 파일로 저장한 뒤, + �
 - [ ] `ground.kind`가 `salt` / `grass` / `snow` / `sand` 중 하나이다
 - [ ] 모든 색이 `#rrggbb` 6자리이다
 - [ ] 숫자는 0~1이고, `nightPhotos`는 `night` 또는 `aurora`이다
+- [ ] `ground.sea`와 `ground.path`는 0~1이고 `ground.sea`는 `sand`에서만 쓴다
+- [ ] `horizon.height`는 0.1~0.9, `view.locked`는 `true`/`false`(따옴표 없이)이다
 - [ ] 표에 없는 키(`id`, `thumb` 등)를 넣지 않았다

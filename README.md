@@ -4,6 +4,7 @@ A quiet, mobile-first walking app. A person, seen from behind, walks across a wi
 
 - Portrait only, icon-only menus, built for phones (it also runs in a desktop browser).
 - Maps: **Salt Desert** (mirror lake), **Grassland** (swaying meadow with wildflowers), **Snow North** (snowfall, footprints, aurora). You can add your own with a JSON file (see [map 제작.md](map%20제작.md), written so an LLM can create maps for you), up to 9 maps in total.
+- Maps can fix the camera, put trees and a path on both sides of the walker, set the horizon height, or add a sea to the right of a sandy beach (see the map guide).
 - Day and night cycle with a chosen time zone and day length (3 / 6 / 9 / 12 / 24 hours).
 - Real ambience recordings (wind, crickets, forest), a music player (YouTube playlist, local files, URLs) with a 10-band equalizer.
 - 9 playable characters (Quaternius, CC0) that move with the clips stored in their own files (idle, walk, sit down).

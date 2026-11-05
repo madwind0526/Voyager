@@ -1,0 +1,33 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Forest Path",
+  "ground": {
+    "kind": "grass",
+    "color": "#4f8a2a",
+    "path": 0.5,
+    "pathColor": "#7a6040"
+  },
+  "sky": {
+    "clouds": 0.4,
+    "haze": 0.25,
+    "blue": 0.7
+  },
+  "horizon": {
+    "mountains": 0.95,
+    "color": "#5a7a92",
+    "height": 0.45,
+    "layout": "ahead"
+  },
+  "scenery": {
+    "trees": 0.8,
+    "treeColor": "#2f6b34"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.4
+  }
+}

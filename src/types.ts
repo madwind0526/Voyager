@@ -8,8 +8,10 @@ export interface ClothesSpec {
 export interface MapSpec {
   schema: string; id?: string; name: string; author: string;
   thumb?: string; // card picture; built-in maps only (community maps cannot point at arbitrary URLs)
-  ground: { kind: "salt" | "grass" | "snow" | "sand"; color: string; reflect: number; cracks: number };
+  ground: { kind: "salt" | "grass" | "snow" | "sand"; color: string; reflect: number; cracks: number; path: number; sea: number; pathColor: string };
   sky: { clouds: number; stars: number; haze: number; blue: number; aurora: number; nightPhotos: string };
-  horizon: { mountains: number; color: string; snow: number; trees: number };
+  horizon: { mountains: number; color: string; snow: number; trees: number; height: number; layout: "valley" | "ahead" };
+  scenery: { trees: number; treeColor: string };
+  view: { locked: boolean };
   ambience: { wind: number; birds: number; insects: number };
 }
