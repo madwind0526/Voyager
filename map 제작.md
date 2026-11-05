@@ -314,8 +314,8 @@
     "blue": 0.7
   },
   "horizon": {
-    "mountains": 0.95,
-    "color": "#5a7a92",
+    "mountains": 0.8,
+    "color": "#4f7f8a",
     "height": 0.45,
     "layout": "ahead"
   },

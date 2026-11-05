@@ -669,7 +669,7 @@ export class World {
           float size = uHeight.x + uHeight.y * aRand.x;
           float wide = uWide * (0.8 + 0.5 * fract(aRand.x * 7.3 + aRand.y * 3.1)); // some trees slim, some broad
           // Not on the path, not too many (density), not beyond the view distance.
-          float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.8 + 2.0 * aRand.y) + step(115.0, dist);
+          float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.5 + 2.0 * aRand.y + 0.4 * size * wide) /* a bigger crown stays further from the path */ + step(115.0, dist);
           vec3 p = position;
           p.xz *= wide;
           p.x += sin(uTime * 0.8 + aRand.y * 20.0) * 0.012 * p.y; // a very small sway that grows toward the top
