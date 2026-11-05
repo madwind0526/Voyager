@@ -1,0 +1,1042 @@
+import * as THREE from "three";
+import { Reflector } from "three/examples/jsm/objects/Reflector.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { Sky } from "three/examples/jsm/objects/Sky.js";
+import { WALK_SPEED } from "./config";
+import { Person } from "./avatar";
+import { BODIES } from "./bodies";
+import type { ClothesSpec, MapSpec } from "./types";
+
+const GLSL_NOISE = /* glsl */ `
+// Sine-free hash: sin() of large arguments loses precision on GPUs (stars vanish, patterns break far from the origin).
+float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+}
+float fbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+`;
+
+// A sky picture is a window on the sky: its bottom edge is the horizon, its top edge 55 degrees up,
+// and sideways it repeats mirrored so there is no seam.
+const PHOTO_GLSL = /* glsl */ `
+vec3 skyPhoto(sampler2D tex, vec3 d, float aspect, float t) {
+  float az = atan(d.x, -d.z) / 6.2831853 * 360.0 / (55.0 * max(aspect, 0.76)) + 0.5 + t * 0.0015; // +0.5: the picture centre, not a mirror seam, faces forward
+  float u = abs(fract(az * 0.5) * 2.0 - 1.0);
+  float v = clamp(asin(clamp(d.y, 0.0, 1.0)) / 0.9599311, 0.0, 1.0);
+  // Stay a little inside the picture: the outermost pixels are often a dark border or JPEG edge, which shows as a line at every mirror fold.
+  return texture2D(tex, vec2(0.015 + 0.97 * u, 0.01 + 0.98 * v)).rgb;
+}
+`;
+
+// Night sky: NASA's deep star map (public domain, see public/sounds/CREDITS.txt) plus the moon, drawn
+// additively over the physical sky (which is black at night). The map turns slowly with the hour.
+const starMap = new THREE.TextureLoader().load("/sky/starmap.jpg");
+starMap.colorSpace = THREE.SRGBColorSpace;
+starMap.generateMipmaps = true; // blurred levels give the diffuse Milky Way glow
+starMap.minFilter = THREE.LinearMipmapLinearFilter;
+starMap.wrapS = THREE.RepeatWrapping;
+const moonMap = new THREE.TextureLoader().load("/sky/moon.jpg");
+moonMap.colorSpace = THREE.SRGBColorSpace;
+const nightMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending,
+  uniforms: {
+    uMoon: { value: new THREE.Vector3() }, uStars: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uCloud: { value: 0.5 }, uAurora: { value: 0 },
+    uMap: { value: starMap }, uMoonMap: { value: moonMap }, uRot: { value: new THREE.Matrix3() },
+    uPhoto: { value: null as THREE.Texture | null }, uPhotoOn: { value: 0 }, uPhotoAspect: { value: 1.5 },
+  },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 uMoon; uniform float uStars, uNight, uTime, uCloud, uAurora; uniform sampler2D uMap, uMoonMap, uPhoto; uniform mat3 uRot; uniform float uPhotoOn, uPhotoAspect;
+    varying vec3 vDir;
+    ${GLSL_NOISE}
+    ${PHOTO_GLSL}
+    // One meteor every PERIOD seconds, streaking for about 1.2 s along a short random arc in the forward sky.
+    float meteor(vec3 d, float seed, float period) {
+      float x = uTime / period + seed;
+      float cyc = floor(x);
+      float t = fract(x) * period / 1.2;
+      if (t > 1.0) return 0.0;
+      vec3 a = normalize(vec3(hash(vec2(cyc, seed + 1.0)) * 2.0 - 1.0, 0.35 + 0.5 * hash(vec2(cyc, seed + 2.0)), -0.3 - hash(vec2(cyc, seed + 3.0))));
+      vec3 b = normalize(a + vec3((hash(vec2(cyc, seed + 4.0)) - 0.5) * 0.7, -0.16, 0.0));
+      vec3 head = normalize(mix(a, b, t));
+      vec3 tail = normalize(mix(a, b, max(t - 0.25, 0.0)));
+      vec3 ab = head - tail;
+      float h = clamp(dot(d - tail, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+      float dist = length(normalize(tail + ab * h) - d);
+      return (1.0 - smoothstep(0.0, 0.004, dist)) * h * sin(t * 3.1416);
+    }
+    // Point stars on a hash grid: round core plus a soft glow; sparkle > 0 adds a thin cross to the brightest ones.
+    vec3 pointStars(vec3 d, float scale, float prob, float sparkle) {
+      vec3 sp = d * scale;
+      vec3 q = floor(sp);
+      vec2 f = fract(sp).xy - 0.5;
+      float on = step(1.0 - prob, hash(q.xy + q.z * 17.0 + scale));
+      float mag = pow(hash(q.yz + 3.0), 3.0);
+      float r = length(f);
+      float s = smoothstep(mix(0.1, 0.34, mag), 0.0, r) + 0.22 * mag * exp(-r * 9.0);
+      float cross_ = (smoothstep(0.035, 0.0, abs(f.x)) * smoothstep(0.5, 0.0, abs(f.y)) + smoothstep(0.035, 0.0, abs(f.y)) * smoothstep(0.5, 0.0, abs(f.x))) * mag * sparkle;
+      float v = on * (s + cross_) * (0.35 + 0.65 * hash(q.zx + 7.0));
+      return v * mix(vec3(0.7, 0.82, 1.0), vec3(1.0, 0.9, 0.75), hash(q.xz + 11.0));
+    }
+    void main(){
+      vec3 d = normalize(vDir);
+      float above = smoothstep(-0.02, 0.05, d.y);
+      if (uPhotoOn > 0.5) {
+        vec3 ph = skyPhoto(uPhoto, d, uPhotoAspect, uTime);
+        ph *= mix(1.0, 0.62, smoothstep(0.12, 0.6, d.y)); // darker overhead
+        ph += vec3(0.06, 0.08, 0.15) * pow(1.0 - clamp(d.y * 2.2, 0.0, 1.0), 2.5); // brighter toward the mountains
+        ph += vec3(1.0, 0.97, 0.92) * 0.5 * (meteor(d, 0.0, 19.0) + meteor(d, 0.37, 31.0)) * uStars;
+        gl_FragColor = vec4(ph * above * uNight * uStars * 1.9, 1.0); // x1.9: the output pass tone-maps the domes too
+        #include <colorspace_fragment>
+        return;
+      }
+      vec3 r = uRot * d;
+      vec2 uv = vec2(atan(r.z, r.x) / 6.2831853 + 0.5, asin(clamp(r.y, -1.0, 1.0)) / 3.1415927 + 0.5);
+
+      // Milky Way: the star map's blurred glow, colored blue to violet to pink with nebula patches and dark dust lanes.
+      float gl = dot(textureLod(uMap, uv, 5.0).rgb, vec3(0.333));
+      float broad = dot(textureLod(uMap, uv, 6.5).rgb, vec3(0.333));
+      float band = smoothstep(0.012, 0.18, gl);
+      float tone = fbm(uv * vec2(14.0, 7.0) + 3.0);
+      vec3 blue = vec3(0.28, 0.45, 1.0), violet = vec3(0.62, 0.36, 0.95), pink = vec3(1.0, 0.45, 0.62), warm = vec3(1.0, 0.72, 0.45);
+      vec3 hue = mix(mix(blue, violet, smoothstep(0.3, 0.55, tone)), pink, smoothstep(0.52, 0.72, tone) * smoothstep(0.06, 0.3, gl));
+      hue = mix(hue, warm, smoothstep(0.2, 0.5, gl) * 0.45);
+      vec3 mw = hue * pow(gl, 0.85) * 3.6;
+      mw *= clamp((gl - broad) * 7.0 + 0.75, 0.25, 1.0);
+      vec3 mapStars = pow(textureLod(uMap, uv, 0.0).rgb, vec3(1.1)) * 2.0;
+      vec3 pts = pointStars(d, 300.0, 0.022 * (1.0 + 3.0 * band), 0.0) * 1.5
+               + pointStars(d, 620.0, 0.03 * (1.0 + 2.5 * band), 0.0) * 0.8
+               + pointStars(d, 85.0, 0.018, 1.0) * 2.2;
+      vec3 sky = (mw + mapStars + pts) * uStars;
+      sky += vec3(1.0, 0.97, 0.92) * 0.55 * (meteor(d, 0.0, 19.0) + meteor(d, 0.37, 31.0)) * uStars;
+      // Aurora (northern maps): slow green-to-violet ribbons low in the forward sky, with fine vertical rays.
+      if (uAurora > 0.0) {
+        float az = atan(d.x, -d.z);
+        float band = smoothstep(0.05, 0.22, d.y) * (1.0 - smoothstep(0.4, 0.9, d.y));
+        float front = smoothstep(-0.5, 0.9, -d.z);
+        float ribbon = fbm(vec2(az * 2.4 + uTime * 0.04, d.y * 0.9 + uTime * 0.01));
+        float rays = 0.55 + 0.45 * noise(vec2(az * 38.0 + sin(uTime * 0.17 + az * 3.0) * 3.0, d.y * 2.0));
+        float aur = band * front * smoothstep(0.35, 0.8, ribbon) * rays;
+        sky += mix(vec3(0.12, 1.0, 0.5), vec3(0.55, 0.35, 1.0), smoothstep(0.18, 0.6, d.y)) * aur * 1.3 * uAurora;
+      }
+
+      // Moonlit clouds low in the sky: dark blue bodies with silver edges toward the moon; they hide the stars behind.
+      float md = dot(d, uMoon);
+      vec2 cuv = d.xz / (d.y + 0.16) * 0.9 + vec2(uTime * 0.004, 0.0);
+      float cn = fbm(cuv);
+      float cn2 = fbm(cuv + normalize(uMoon.xz + vec2(1e-4)) * 0.05);
+      float cm = smoothstep(mix(0.82, 0.42, uCloud), mix(0.82, 0.42, uCloud) + 0.2, cn) * smoothstep(0.0, 0.07, d.y) * (1.0 - 0.8 * smoothstep(0.22, 0.8, d.y));
+      float rim = clamp(0.5 + (cn - cn2) * 9.0, 0.0, 1.0);
+      float moonAmt = 0.3 + 0.7 * pow(max(md, 0.0), 3.0);
+      vec3 cloudCol = mix(vec3(0.012, 0.026, 0.065), vec3(0.78, 0.84, 1.0), rim * moonAmt * 0.85);
+      vec3 col = sky * (1.0 - cm) * 0.7 * mix(1.0, 0.7, smoothstep(0.2, 0.7, d.y)) + cloudCol * cm * 0.9;
+
+      // Full moon with real surface detail and a cool glow.
+      vec3 mz = uMoon;
+      vec3 mx = normalize(cross(vec3(0.0, 1.0, 0.0), mz));
+      vec3 my = cross(mz, mx);
+      vec2 mp = vec2(dot(d, mx), dot(d, my)) / 0.05;
+      float mr = length(mp);
+      if (md > 0.0 && mr < 1.0) {
+        float z = sqrt(1.0 - mr * mr);
+        vec3 n = vec3(mp, z);
+        vec2 muv = vec2(atan(n.x, n.z) / 6.2831853 + 0.5, asin(clamp(n.y, -1.0, 1.0)) / 3.1415927 + 0.5);
+        col = mix(col, texture2D(uMoonMap, muv).rgb * vec3(0.9, 0.97, 1.1) * pow(z, 0.3) * 1.7, smoothstep(1.0, 0.94, mr));
+      }
+      col += vec3(0.45, 0.62, 1.0) * (0.55 * exp(-max(mr - 1.0, 0.0) * 5.0) * step(0.0, md) * smoothstep(0.0, 0.2, mr) + 0.12 * pow(max(md, 0.0), 120.0));
+
+      // Night glow: deep blue overhead, a warm rose haze along the horizon (distant lights on the dust).
+      vec3 glow = mix(vec3(0.11, 0.06, 0.08), vec3(0.002, 0.006, 0.02), pow(clamp(d.y * 1.7, 0.0, 1.0), 0.45));
+      gl_FragColor = vec4((col * above + glow) * uNight * 1.9, 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// Daytime sky picture: replaces the physical sky while one is loaded.
+const dayMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  uniforms: { uPhoto: { value: null as THREE.Texture | null }, uAspect: { value: 1.5 }, uLight: { value: 1 }, uTime: { value: 0 } },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D uPhoto; uniform float uAspect, uLight, uTime; varying vec3 vDir;
+    ${PHOTO_GLSL}
+    void main(){
+      vec3 d = normalize(vDir);
+      vec3 c = skyPhoto(uPhoto, d, uAspect, uTime);
+      c *= mix(1.0, 0.8, smoothstep(0.2, 0.8, d.y)); // a little darker overhead
+      c += vec3(0.1, 0.12, 0.16) * pow(1.0 - clamp(d.y * 2.2, 0.0, 1.0), 2.5) * 0.8; // lighter toward the mountains
+      gl_FragColor = vec4(c * uLight * 1.9, 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// Haze that seeps into the sky above the horizon, so the line between sky and land dissolves.
+const hazeMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, transparent: true,
+  uniforms: { uHaze: { value: new THREE.Color() } },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform vec3 uHaze; varying vec3 vDir;
+    void main(){
+      float y = max(normalize(vDir).y, 0.0);
+      gl_FragColor = vec4(uHaze, 0.8 * exp(-y * 7.0));
+    }`,
+});
+
+const groundShader = {
+  uniforms: {
+    color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null },
+    uBase: { value: new THREE.Color("#e8f0f4") }, uHaze: { value: new THREE.Color() },
+    uReflect: { value: 0.85 }, uCracks: { value: 0.4 }, uLight: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uKind: { value: 0 }, // uKind: 0 salt mirror, 1 meadow, 2 snow, 3 sand
+    uCam: { value: new THREE.Vector3() }, uOffset: { value: new THREE.Vector2() },
+  },
+  vertexShader: `
+    uniform mat4 textureMatrix;
+    varying vec4 vUv; varying vec3 vWorld;
+    void main(){
+      vUv = textureMatrix * vec4(position, 1.0);
+      vec4 w = modelMatrix * vec4(position, 1.0);
+      vWorld = w.xyz;
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse; uniform vec3 uBase, uCam, uHaze;
+    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind; uniform vec2 uOffset;
+    varying vec4 vUv; varying vec3 vWorld;
+    ${GLSL_NOISE}
+    float edge(vec2 p){
+      vec2 ip = floor(p), fp = fract(p);
+      float d1 = 8.0, d2 = 8.0;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+        vec2 g = vec2(float(i), float(j));
+        vec2 o = vec2(hash(ip + g), hash(ip + g + 7.3));
+        float d = length(g + o - fp);
+        if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+      }
+      return 1.0 - smoothstep(0.0, 0.07, d2 - d1);
+    }
+    void main(){
+      // The world scrolls under the avatar by uOffset, so patterns move while the avatar walks.
+      vec2 w = vWorld.xz + uOffset;
+      float dist = distance(vWorld.xz, uCam.xz);
+      // Thin water film: two scales of ripple distort the mirror, fading out with distance.
+      vec2 rip = vec2(noise(w * 1.7 + uTime * 0.15), noise(w * 1.7 - uTime * 0.12)) - 0.5;
+      rip += 0.5 * (vec2(noise(w * 6.0 + uTime * 0.3), noise(w * 6.0 - uTime * 0.25)) - 0.5);
+      vec4 uv = vUv; uv.xy += rip * 0.014 * uv.w * (1.0 - smoothstep(10.0, 80.0, dist));
+      vec3 refl = texture2DProj(tDiffuse, uv).rgb;
+      vec3 view = normalize(uCam - vWorld);
+      float fres = 0.04 + 0.96 * pow(1.0 - clamp(view.y, 0.0, 1.0), 5.0);
+      vec3 base = uBase * uLight;
+      float jt = 0.0;
+      if (uKind < 0.5) {
+        jt = edge(w / 1.3) * uCracks * (1.0 - smoothstep(6.0, 45.0, dist));
+        base = mix(base, base * 0.7, jt);
+      } else if (uKind < 1.5) {
+        // Meadow: broad patches of lighter and darker grass plus fine mottling.
+        float n1 = fbm(w * 0.07), n2 = fbm(w * 0.8 + 4.0);
+        base = mix(base * vec3(0.95, 1.05, 0.7), base * vec3(1.5, 1.4, 0.8), n1) * (0.9 + 0.3 * n2);
+      } else if (uKind < 2.5) {
+        // Snow: soft drifts with blue shadows, and a little glitter close by.
+        // Wind-sculpted drifts: a height field lit from one side, so ridges catch light and hollows go blue.
+        // Clumpy crust: four octaves of height (lumps of ~1.5 m down to grains), each fading out before it can alias.
+        float f1 = 1.0 - smoothstep(60.0, 300.0, dist), f2 = 1.0 - smoothstep(25.0, 120.0, dist);
+        float f3 = 1.0 - smoothstep(8.0, 45.0, dist), f4 = 1.0 - smoothstep(3.0, 18.0, dist);
+        vec2 ld = vec2(0.6, 0.8) * 0.06;
+        vec2 p0 = w, p1 = w + ld;
+        float h0 = 0.8 * noise(p0 * 0.45) + 0.3 * f2 * noise(p0 * 2.1 + 3.0) + 0.3 * f2 * noise(vec2(p0.x * 0.8, p0.y * 3.6) + 11.0) + 0.22 * f3 * noise(p0 * 6.0 + 9.0) + 0.12 * f4 * noise(p0 * 17.0 + 5.0);
+        float h1 = 0.8 * noise(p1 * 0.45) + 0.3 * f2 * noise(p1 * 2.1 + 3.0) + 0.3 * f2 * noise(vec2(p1.x * 0.8, p1.y * 3.6) + 11.0) + 0.22 * f3 * noise(p1 * 6.0 + 9.0) + 0.12 * f4 * noise(p1 * 17.0 + 5.0);
+        float sh = clamp((h0 - h1) * 20.0, -1.0, 1.0); // slope toward the sun: positive faces the light
+        float ao = smoothstep(0.1, 0.8, h0 / (0.8 + 0.35 * f2 + 0.22 * f3 + 0.12 * f4)); // hollows are darker
+        vec3 lit = mix(vec3(0.85, 0.93, 1.1), vec3(1.0, 0.98, 0.93), clamp(uLight, 0.0, 1.0)), shade = vec3(0.58, 0.7, 1.0);
+        base = uBase * (uLight * 1.9 + 0.16 + 0.52 * uNight) * mix(shade, lit, clamp(0.55 + 0.5 * sh, 0.0, 1.0)) * (0.8 + 0.3 * ao);
+        // Glitter: grains that flash and fade, dense near the player.
+        vec2 gc = floor(w * 60.0);
+        float sp = step(0.985, hash(gc)) * (0.35 + 0.65 * hash(gc + floor(uTime * 1.5)));
+        base += (vec3(1.0, 1.0, 1.1) * 0.7 + 0.5 * vec3(hash(gc + 3.1), hash(gc + 7.7), hash(gc + 1.3))) * sp * (1.0 - smoothstep(1.0, 20.0, dist)) * 1.6 * uLight;
+      }
+      else {
+        // Sand: long wind-built dunes with fine ripples across them, lit from one side so each ridge has a warm bright face and a darker lee.
+        float fr = 1.0 - smoothstep(10.0, 90.0, dist), fm = 1.0 - smoothstep(4.0, 30.0, dist);
+        vec2 sd = vec2(0.6, 0.8) * 0.08;
+        vec2 q0 = w, q1 = w + sd;
+        float d0 = 0.9 * noise(vec2(q0.x * 0.07, q0.y * 0.16)) + 0.35 * fr * noise(vec2(q0.x * 0.5, q0.y * 1.4) + 5.0) + 0.14 * fr * noise(vec2(q0.x * 1.1 + 2.0 * noise(q0 * 0.25), q0.y * 7.0)) + 0.05 * fm * noise(q0 * 28.0);
+        float d1 = 0.9 * noise(vec2(q1.x * 0.07, q1.y * 0.16)) + 0.35 * fr * noise(vec2(q1.x * 0.5, q1.y * 1.4) + 5.0) + 0.14 * fr * noise(vec2(q1.x * 1.1 + 2.0 * noise(q1 * 0.25), q1.y * 7.0)) + 0.05 * fm * noise(q1 * 28.0);
+        float ss = clamp((d0 - d1) * 14.0, -1.0, 1.0);
+        vec3 sunny = mix(vec3(0.9, 0.9, 1.0), vec3(1.05, 0.97, 0.86), clamp(uLight, 0.0, 1.0)), lee = vec3(0.62, 0.5, 0.42);
+        base = uBase * (uLight * 1.7 + 0.14 + 0.5 * uNight) * mix(lee, sunny, clamp(0.55 + 0.5 * ss, 0.0, 1.0)) * (0.85 + 0.25 * d0);
+        vec2 gs = floor(w * 80.0);
+        base += vec3(1.0, 0.9, 0.7) * step(0.992, hash(gs)) * (1.0 - smoothstep(1.0, 12.0, dist)) * 0.6 * uLight; // a few glinting grains
+      }
+      // Salt under a film of water: strong mirror at grazing angles, a bit of salt showing below.
+      float k = uKind < 0.5 ? clamp(uReflect * mix(0.55, 1.0, fres) + fres * 0.4, 0.0, 1.0) : clamp(uReflect * fres, 0.0, 0.3);
+      vec3 col = mix(base, refl, k);
+      // Far away the salt mirrors the sky, a shade darker; meadow and snow dissolve into the haze.
+      // A meadow keeps a dark, green horizon (a bright haze would wash it out); salt and snow melt into the pale haze.
+      vec3 hz = (uKind > 0.5 && uKind < 1.5) ? mix(base * 0.55, uHaze * 0.35, 0.4) : uHaze;
+      vec3 far = uKind < 0.5 ? refl * 0.93 : mix(base, hz * 0.9, 0.55);
+      col = mix(col, far, smoothstep(150.0, 900.0, dist));
+      // Horizon: a thin bright haze band where the ground meets the sky, so the two never merge.
+      col = mix(col, hz, min(1.0, 0.85 * exp(-view.y * 90.0) + 0.45 * exp(-view.y * 26.0)));
+      col *= 1.0 - 0.2 * jt; // cracks stay visible through the mirror
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+};
+
+// Rough horizon tint by sun height, used for mountains and ambient light only (the sky itself is physical).
+const HORIZON = { day: new THREE.Color("#c9dcee"), dusk: new THREE.Color("#f0a479"), night: new THREE.Color("#141b3a") };
+
+// Real 3D mountain range for snowy maps: a height field around the camera, lit by the sun so faces are bright or blue-shaded,
+// with bare rock on steep slopes, snow elsewhere, and fog pooling in the valleys.
+const rangeMat = () =>
+  new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: { uHaze: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(0.5, 0.7, 0.3) }, uLight: { value: 1 }, uNight: { value: 0 }, uSnow: { value: 1 }, uMeadow: { value: 0 }, uDeep: { value: 0 }, uTrees: { value: 0 }, uCol1: { value: new THREE.Color() }, uCol2: { value: new THREE.Color() } },
+    vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normal; vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uHaze, uSun, uCol1, uCol2; uniform float uLight, uNight, uSnow, uMeadow, uDeep, uTrees; varying vec3 vN; varying vec3 vP;
+      ${GLSL_NOISE}
+      void main(){
+        vec3 n = normalize(vN); if (n.y < 0.0) n = -n;
+        float dist = length(vP.xz);
+        float grain = fbm(vP.xz * 0.011 + vP.y * 0.02), fine = fbm(vP.xz * 0.06 + vP.y * 0.05);
+        float steep = 1.0 - n.y;
+        float snowM = smoothstep(0.4, 0.2, steep + (grain - 0.5) * 0.45) * smoothstep(30.0, 140.0, vP.y + grain * 90.0) * uSnow;
+        vec3 rock = mix(vec3(0.06, 0.09, 0.15), vec3(0.24, 0.27, 0.34), fine);
+        vec3 albedo = mix(rock, vec3(0.97, 0.98, 1.0), snowM);
+        // Conifer forest on the gentle lower slopes.
+        float treeM = uTrees * smoothstep(130.0, 30.0, vP.y + (grain - 0.5) * 90.0) * (1.0 - smoothstep(0.3, 0.5, steep));
+        albedo = mix(albedo, vec3(0.02, 0.05, 0.06) * (0.7 + 0.8 * fine), treeM); // dark, smooth: speckles read as noise at night
+        float lit = smoothstep(-0.05, 0.65, dot(n, normalize(uSun)));
+        vec3 col = albedo * (vec3(0.2, 0.3, 0.68) * (0.5 + 0.5 * n.y) + vec3(1.0, 0.97, 0.9) * 1.45 * lit);
+        col *= 1.7 * uLight + 0.2 * uNight;
+        // Layered hills (meadow, salt desert): flat-colored slopes, no snow, and fog thick enough that every layer is paler than the one before.
+        if (uMeadow > 0.5) {
+          vec3 forest = mix(uCol1, uCol2, fine);
+          col = forest * (0.45 + 1.1 * lit) * (mix(1.5, 1.0, uDeep) * uLight + 0.2 * uNight);
+        }
+        float fog = 1.0 - exp(-dist * mix(0.00032, mix(0.0011, 0.0016, uDeep), uMeadow));
+        fog = max(fog, (1.0 - smoothstep(0.0, 220.0, vP.y)) * (1.0 - exp(-dist * 0.0012)) * mix(0.8, 0.55, uMeadow)); // valley mist
+        col = mix(col, uHaze * mix(vec3(1.0), vec3(0.42, 0.54, 0.8), uDeep), clamp(fog, 0.0, mix(0.96, 0.78, uDeep))); // a deep-colored range fades to a darker blue haze, not to white
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+
+// Layered mountains, like a misty range photographed from above: many ridges at growing distances. Each ridge is
+// darker at the crest and melts into valley fog at its foot; far ridges are pale and low in contrast.
+const ridgeMat = (seed: number): THREE.ShaderMaterial =>
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: { uTop: { value: new THREE.Color() }, uHaze: { value: new THREE.Color() }, uMist: { value: 0.9 }, uRim: { value: 0.4 }, uSeed: { value: seed }, uSnow: { value: 0 }, uForest: { value: 0 }, uFoot: { value: 0 }, uSnowCol: { value: new THREE.Color() }, uNatural: { value: 0 } },
+    vertexShader: `attribute float aSlope, aH; varying vec2 vUv; varying float vSlope, vG; void main(){ vUv = uv; vSlope = aSlope; float v0 = 3.0 / (3.0 + aH); vG = (uv.y - v0) / (1.0 - v0); /* 0 at the ground line, 1 at the crest */ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      varying float vSlope, vG;
+      uniform float uFoot;
+      uniform vec3 uTop, uHaze, uSnowCol; uniform float uMist, uRim, uSeed, uSnow, uForest, uNatural; varying vec2 vUv;
+      ${GLSL_NOISE}
+      void main(){
+        float vH = vUv.y;
+        // Slanted spurs and gullies running down the slopes.
+        float spurScale = mix(170.0, 42.0, uNatural);
+        float spur = fbm(vec2(vUv.x * spurScale + vH * mix(20.0, 9.0, uNatural) + uSeed, vH * mix(6.0, 13.0, uNatural) + uSeed * 0.37));
+        float k = smoothstep(0.0, uMist * (0.8 + 0.4 * spur), vH);
+        vec3 col = mix(uHaze, uTop * (0.8 + 0.4 * spur), k); // the foot is pure fog; shading only on the slope
+        // Which way the slope faces (from the silhouette): the sun side is bright, the far side blue shade; steep couloirs run down the faces.
+        float facing = smoothstep(0.1, 0.9, 0.5 + vSlope * 22.0);
+        // Faces are broken up by gullies that slant down away from the peak, so the shading is never a flat band.
+        float diag = fbm(vec2(vUv.x * 170.0 + vH * 70.0 * sign(vSlope) + uSeed, vH * 5.0));
+        float lit = clamp(facing + (diag - 0.5) * 1.1 * (0.4 + 0.6 * abs(facing - 0.5) * 2.0 + 0.3), 0.0, 1.0);
+        float streak = fbm(vec2(vUv.x * 240.0 + uSeed, vH * 2.5));
+        float rockField = fbm(vec2(vUv.x * 38.0 + uSeed, vH * 18.0 + uSeed * 0.71)) + uNatural * ((streak - 0.5) * 0.6 + (0.5 - lit) * 0.45);
+        float rock = smoothstep(0.42, 0.62, rockField) * smoothstep(0.34, 0.5, vH) * (1.0 - smoothstep(0.84, 0.96, vH));
+        float snowField = fbm(vec2(vUv.x * 24.0 + uSeed * 0.53, vH * 12.0 + uSeed * 0.19));
+        float snowLine = 0.42 + (snowField - 0.5) * 0.2 + (spur - 0.5) * 0.08;
+        float snow = smoothstep(snowLine - 0.08, snowLine + 0.08, vH) * uSnow;
+        col = mix(col, uTop * vec3(0.52, 0.48, 0.42), rock * snow);
+        float spur2 = fbm(vec2(vUv.x * spurScale + vH * mix(20.0, 9.0, uNatural) + uSeed + 0.6, vH * mix(6.0, 13.0, uNatural) + uSeed * 0.37));
+        vec3 faces = mix(vec3(0.62, 0.74, 1.0), vec3(1.05, 1.03, 1.0), clamp(mix(0.5 + (spur - spur2) * 6.0, lit + (streak - 0.5) * 0.5, uNatural), 0.0, 1.0)); // sunny and shaded faces
+        faces = mix(faces, mix(vec3(0.34, 0.48, 0.92), vec3(1.2, 1.18, 1.12), lit), uNatural);
+        col = mix(col, uSnowCol * faces, snow * (1.0 - 0.88 * rock));
+        // Dark conifer forest at the foot of the slopes: ragged top edge, a little snow dusted on it.
+        float edgeN = fbm(vec2(vUv.x * 520.0 + uSeed, 3.0));
+        float forest = (1.0 - smoothstep(0.1 + 0.06 * edgeN, 0.16 + 0.1 * edgeN, vH)) * smoothstep(0.0, 0.03, vH) * uForest;
+        col = mix(col, mix(uTop * 0.28, uSnowCol * 0.55, step(0.62, fbm(vec2(vUv.x * 900.0, vH * 80.0)))), forest * 0.9);
+        col = mix(col, uHaze, (1.0 - smoothstep(0.0, 0.5, vG)) * uFoot); // meadow ridges rise out of the haze instead of standing on a dark base
+        col = mix(col, uHaze * 1.25, smoothstep(0.88, 1.0, vH) * uRim); // the crest catches the sky light
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+
+// Periodic value noise (period P) for seamless ridge lines around the full circle.
+const h1 = (n: number) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+function pnoise(x: number, P: number) {
+  const i = Math.floor(x), f = x - i, s = f * f * (3 - 2 * f);
+  const a = h1(((i % P) + P) % P), b = h1((((i + 1) % P) + P) % P);
+  return a + (b - a) * s;
+}
+/** Pointy ridge line 0..1 for angle a: ridged multi-fractal noise, different for each seed. */
+function ridgeLine(a: number, seed: number, framed: boolean, sharp = 1.35) {
+  const u = (a + Math.PI) / (Math.PI * 2);
+  const octaves = [[5, 0.5], [11, 0.27], [23, 0.14], [47, 0.07], [97, 0.035], [193, 0.018]];
+  let h = 0;
+  for (const [P, amp] of octaves) {
+    const r = 1 - Math.abs(2 * pnoise(u * P + seed * 3.7, P) - 1);
+    h += amp * r * r;
+  }
+  const flat = Math.min(1, h / 0.9);
+  if (!framed) return flat;
+  const height = Math.pow(flat, sharp); // > 1: sharper, more pyramid-like peaks; < 1: rounder hills
+  const front = Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2));
+  // High massifs on both sides of the first view and a low saddle between them (a phone sees about +-0.28 rad).
+  const leftPeak = Math.exp(-(((front + 0.3) / 0.16) ** 2));
+  const rightPeak = Math.exp(-(((front - 0.32) / 0.17) ** 2));
+  const gap = Math.exp(-((front / 0.1) ** 2));
+  return Math.min(1, Math.max(0.08, 0.12 + height * 0.22 + (leftPeak * 0.62 + rightPeak * 0.66) * (0.3 + 1.0 * height) - gap * 0.15)); // the noise carves the massifs into crags
+}
+
+const RINGS = 9;
+const ridgeT = (i: number) => i / (RINGS - 1); // 0 = nearest, 1 = farthest
+const ridgeDist = (i: number) => 320 + i * 150; // all nearer than the star dome (1800)
+const ridgeAngle = (i: number) => 0.13 + 0.02 * i; // peak height as seen from here, in radians
+
+const RIDGE_NEAR = new THREE.Color("#14223a");
+const RIDGE_MID = new THREE.Color("#2f8a90");
+const NIGHT_HAZE = new THREE.Color(0.55, 0.66, 1.1); // band color at night, before tone mapping
+const MEADOW_NEAR = new THREE.Color("#0c4256"), MEADOW_FAR = new THREE.Color("#4c8fb4");
+const AHEAD = 1.3; // how far in front of the camera pivot the avatar stands, in meters
+const SKY_SCALE = 4000;
+
+export class World {
+  renderer: THREE.WebGLRenderer;
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(60, 1, 0.3, 7000);
+  yaw = 0;
+  pitch = 0.12;
+  walking = false;
+  sitting = true;
+  night = 0;
+  windLevel = 0.4;
+  dist = 4.4; // camera distance behind the pivot
+  private sit = 1;
+  private t = 0;
+  private gait = 0;
+  private amp = 0;
+  private pos = new THREE.Vector2();
+  private bloom!: UnrealBloomPass;
+  private composer!: EffectComposer; // scene -> soft bloom on the brightest parts -> tone mapping and color output
+  private sky = new Sky();
+  private hazeDome = new THREE.Mesh(new THREE.SphereGeometry(1700, 32, 16), hazeMat);
+  private dayDome = new THREE.Mesh(new THREE.SphereGeometry(1790, 32, 16), dayMat);
+  private dayLoaded = false;
+  sunUp = true;
+  private stars = new THREE.Mesh(new THREE.SphereGeometry(1800, 24, 12), nightMat);
+  private ground: Reflector; // salt: mirrors the sky
+  private plain!: THREE.Mesh; // meadow and snow: the same ground shader without the mirror pass
+  private grass!: THREE.Mesh;
+  private grassWind!: THREE.IUniform;
+  private printMesh!: THREE.InstancedMesh;
+  private flakes!: THREE.Points;
+  private snowAmt = { value: 0 }; // snowfall strength, eased toward a random target
+  private snowGoal = 0;
+  private snowLeft = 0; // seconds until the weather is rolled again
+  private prints: { x: number; z: number; yaw: number }[] = [];
+  private stride = 0;
+  private side = 1;
+  private kind = 0; // 0 salt, 1 meadow, 2 snow
+  private gu: Record<string, THREE.IUniform>;
+  private rings: THREE.Mesh[] = [];
+  private range!: THREE.Mesh; // snowy maps: the 3D height-field range that replaces the rings
+  private sunLight = new THREE.DirectionalLight(0xffffff, 1);
+  private hemi = new THREE.HemisphereLight(0xffffff, 0x8890a0, 0.2);
+  private avatar = new THREE.Group();
+  private persons: Record<string, Person> = {};
+  private person!: Person;
+  private animation = "walk/Standard Walk.fbx";
+  private clothes?: ClothesSpec;
+  private map?: MapSpec;
+
+  constructor(private canvas: HTMLCanvasElement) {
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.4;
+
+    this.sky.scale.setScalar(SKY_SCALE);
+    this.sky.frustumCulled = false;
+    this.sky.renderOrder = -2;
+    this.stars.renderOrder = -1;
+    this.hazeDome.renderOrder = 0;
+    this.hazeDome.frustumCulled = false;
+    this.dayDome.renderOrder = -1.5;
+    this.dayDome.frustumCulled = false;
+    this.dayDome.visible = false;
+    this.stars.frustumCulled = false;
+    this.avatar.scale.setScalar(0.7); // keep the person understated
+    this.setBody(BODIES[0].id);
+    this.scene.add(this.sky, this.dayDome, this.stars, this.hazeDome, this.sunLight, this.hemi, this.avatar);
+    this.makeEnvironment();
+
+    this.ground = new Reflector(new THREE.PlaneGeometry(8000, 8000), {
+      textureWidth: Math.round(innerWidth * 0.6), textureHeight: Math.round(innerHeight * 0.6), clipBias: 0.003, shader: groundShader,
+    });
+    this.ground.rotation.x = -Math.PI / 2;
+    this.gu = (this.ground.material as THREE.ShaderMaterial).uniforms;
+    this.scene.add(this.ground);
+
+    // Meadow and snow have no mirror: a plain plane sharing every uniform of the mirror ground.
+    const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+    blank.needsUpdate = true;
+    this.plain = new THREE.Mesh(
+      new THREE.PlaneGeometry(8000, 8000),
+      new THREE.ShaderMaterial({ uniforms: { ...this.gu, tDiffuse: { value: blank }, textureMatrix: { value: new THREE.Matrix4() } }, vertexShader: groundShader.vertexShader, fragmentShader: groundShader.fragmentShader }),
+    );
+    this.plain.rotation.x = -Math.PI / 2;
+    this.plain.visible = false;
+    this.scene.add(this.plain);
+    this.makeGrass();
+    this.makePrints();
+
+    for (let i = 0; i < RINGS; i++) {
+      const R = ridgeDist(i);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 1, 720, 1, true), ridgeMat(0));
+      ring.frustumCulled = false;
+      this.rings.push(ring);
+      this.scene.add(ring);
+    }
+    const RS = 720, RR = 90;
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute("position", new THREE.BufferAttribute(new Float32Array((RS + 1) * (RR + 1) * 3), 3));
+    const idx: number[] = [];
+    for (let j = 0; j < RR; j++) for (let i = 0; i < RS; i++) { const a = j * (RS + 1) + i, b = a + RS + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+    rg.setIndex(idx);
+    this.range = new THREE.Mesh(rg, rangeMat());
+    this.range.frustumCulled = false;
+    this.range.visible = false;
+    this.scene.add(this.range);
+    this.newScenery();
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // Only values above the threshold glow: the moon, the sun, bright stars and the horizon haze.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.55, 0.92);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+    this.resize();
+    addEventListener("resize", () => this.resize());
+    this.bindDrag();
+  }
+
+  // Tens of thousands of grass blades in one draw call. They tile around the avatar and sway in travelling waves of wind.
+  private makeGrass() {
+    const N = 170000, TILE = 24;
+    const g = new THREE.InstancedBufferGeometry();
+    // One blade: three tapering segments plus a tip (x = side -1..1, y = height 0..1).
+    const verts: number[] = [];
+    for (const [t, w] of [[0, 1], [0.34, 0.85], [0.68, 0.55]]) verts.push(-w, t, 0, w, t, 0);
+    verts.push(0, 1, 0);
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(verts), 3));
+    g.setIndex([0, 1, 2, 2, 1, 3, 2, 3, 4, 4, 3, 5, 4, 5, 6]);
+    const off = new Float32Array(N * 2), rnd = new Float32Array(N * 3);
+    for (let i = 0; i < off.length; i++) off[i] = Math.random() * TILE;
+    for (let i = 0; i < rnd.length; i++) rnd[i] = Math.random();
+    g.setAttribute("aOff", new THREE.InstancedBufferAttribute(off, 2));
+    g.setAttribute("aRand", new THREE.InstancedBufferAttribute(rnd, 3));
+    g.instanceCount = N;
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide,
+      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE } },
+      vertexShader: /* glsl */ `
+        attribute vec2 aOff; attribute vec3 aRand;
+        uniform vec2 uOffset; uniform float uTime, uWind, uTile;
+        varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
+        void main(){
+          // Each blade repeats every uTile meters; this picks the copy nearest to the avatar, which stands at the origin.
+          vec2 pat = aOff + uTile * floor((uOffset - aOff) / uTile + 0.5);
+          vec2 sc = pat - uOffset;
+          float t = position.y;
+          // Three kinds of plant: fine grass (70%), broad leaves (23%) and a few tall reeds (7%).
+          float sp = fract(aRand.x * 43.7 + aRand.z * 17.3);
+          float broad = step(0.7, sp) * step(sp, 0.93), reed = step(0.93, sp) * step(sp, 0.965), flower = step(0.965, sp);
+          vSp = vec3(broad, reed, flower);
+          float hue = fract(aRand.y * 97.3);   // wildflower colour: white, yellow, pink, violet, orange, blue
+          vFc = hue < 0.17 ? vec3(1.0, 0.98, 0.92) : hue < 0.34 ? vec3(1.0, 0.8, 0.08) : hue < 0.51 ? vec3(1.0, 0.38, 0.6) : hue < 0.68 ? vec3(0.6, 0.32, 0.95) : hue < 0.85 ? vec3(1.0, 0.45, 0.08) : vec3(0.3, 0.48, 1.0);
+          float height = (0.22 + 0.5 * aRand.x * aRand.x + 0.1 * aRand.y) * mix(1.0, 0.85, broad) * mix(1.0, 2.0, reed) * mix(1.0, 0.8, flower);
+          vPatch = 0.5 + 0.5 * sin(pat.x * 0.11 + 1.3) * sin(pat.y * 0.09 + 0.4) + 0.25 * sin(pat.x * 0.043 - pat.y * 0.05);
+          float ang = aRand.z * 6.2831853;
+          vec3 p = vec3(sc.x, 0.0, sc.y);
+          // Thin blades that lean away from the root in a random direction, more the taller they are.
+          vec2 lean = vec2(cos(ang + 1.7), sin(ang + 1.7)) * (0.05 + 0.2 * aRand.y) * height * t * t;
+          p.xz += vec2(cos(ang), sin(ang)) * position.x * (0.0045 + 0.004 * aRand.y) * mix(1.0, 2.4, broad) * mix(1.0, 0.7, reed) * mix(1.0, mix(1.0, 7.0, step(0.6, t)), flower) * (1.0 - 0.5 * t) + lean; // a flower's top segments swell into the blossom
+          p.y = t * height - 0.18 * height * t * t * (0.4 + aRand.y); // the tip droops
+          // Wind: waves running across the field plus a faster flutter, bending each tip downwind.
+          float wave = sin(uTime * 1.4 + pat.x * 0.22 + pat.y * 0.13) + 0.5 * sin(uTime * 2.9 + pat.x * 0.7 - pat.y * 0.4) + 0.25 * sin(uTime * 5.3 + aRand.z * 40.0);
+          float bend = (0.3 + wave * 0.45) * uWind * t * t * height;
+          p.xz += vec2(0.9, 0.44) * bend;
+          p.y -= abs(bend) * 0.25 * t;
+          vT = t; vTone = aRand.y; vDist = length(sc);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+          // Thin out toward the edge of the tile instead of ending in a hard border.
+          float cut = fract(aRand.x * 91.7 + aRand.y * 37.1 + aRand.z * 13.3);
+          // Tufts: slowly varying density leaves thin patches between thick clumps.
+          float clump = smoothstep(-1.1, 0.4, sin(pat.x * 0.37) * sin(pat.y * 0.41) + 0.5 * sin(pat.x * 0.9 + pat.y * 0.7));
+          if (cut < smoothstep(7.0, 11.5, vDist) || fract(cut * 7.13) > 0.25 + 0.75 * clump) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uCol; uniform float uLight; varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
+        void main(){
+          // Dark olive root in shade, rich green blade, sun-lit yellow-green tip; every blade has its own tone.
+          vec3 root = uCol * vec3(0.38, 0.5, 0.2), mid = uCol * vec3(0.95, 1.05, 0.5), tip = uCol * vec3(1.55, 1.7, 0.75);
+          vec3 c = mix(root, mid, smoothstep(0.0, 0.5, vT));
+          c = mix(c, tip, smoothstep(0.45, 1.0, vT));
+          c *= mix(vec3(0.82, 1.0, 1.1), vec3(1.25, 1.08, 0.65), vPatch); // whole patches lean blue-green or yellow-green
+          c = mix(c, c * vec3(0.7, 0.95, 0.8), vSp.x);                         // broad leaves: deeper green
+          c = mix(c, mix(c * vec3(1.1, 1.1, 0.8), vec3(0.62, 0.5, 0.2) * uCol.g * 3.0, smoothstep(0.78, 1.0, vT)), vSp.y); // reeds: pale stems, tan seed heads
+          c *= 0.7 + 0.6 * vTone;
+          c = mix(c, vFc * (0.9 + 0.5 * uLight), vSp.z * smoothstep(0.5, 0.64, vT)); // blossom on top of a green stem
+          c = mix(c, c * vec3(1.15, 1.0, 0.55), step(0.86, vTone) * 0.7); // a few dry, yellowed blades
+          c *= 0.55 + 0.45 * smoothstep(0.0, 0.35, vT); // occlusion between the blades near the ground
+          c += vec3(0.07, 0.09, 0.0) * pow(vT, 3.0); // light shining through the tips
+          gl_FragColor = vec4(c * uLight, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    });
+    this.grassWind = mat.uniforms.uWind;
+    this.grass = new THREE.Mesh(g, mat);
+    this.grass.frustumCulled = false;
+    this.grass.visible = false;
+    this.scene.add(this.grass);
+  }
+
+  // Concave snow impressions with a shaded bowl and a softly raised rim.
+  private makePrints() {
+    const geo = new THREE.RingGeometry(0, 0.5, 40, 8);
+    geo.rotateX(-Math.PI / 2);
+    const positions = geo.attributes.position;
+    const colors = new Float32Array(positions.count * 3);
+    const center = new THREE.Color("#52667f"), middle = new THREE.Color("#c4d3e6"), rim = new THREE.Color("#c3d1e4"), edge = new THREE.Color("#6b7f9c");
+    for (let i = 0; i < positions.count; i++) {
+      let x = positions.getX(i), z = positions.getZ(i);
+      const r = Math.min(1, Math.hypot(x, z) / 0.5);
+      // Squeeze the disc into a boot sole: toe at -z (forward), wide ball, narrow waist, rounded heel at +z.
+      const tt = z + 0.5, bump = (c: number, w: number) => Math.exp(-(((tt - c) / w) ** 2));
+      const half = 0.5 * Math.min(1, 0.8 + 0.2 * bump(0.28, 0.22) + 0.04 * bump(0.82, 0.14) - 0.1 * bump(0.58, 0.12));
+      x = (x / Math.sqrt(Math.max(0.25 - z * z, 1e-4))) * half;
+      positions.setX(i, x);
+      positions.setY(i, 0.002 + smooth(0.62, 0.98, r) * 0.008);
+      // A bright frosted lip on the near (heel) edge and a deep blue shadow inside, on the far (toe) side, like a boot print in crust.
+      const inside = 1 - smooth(0.62, 0.98, r), far = 0.3 + 0.7 * smooth(0.3, -0.35, z + 0.25 * x);
+      const color = rim.clone().lerp(center, inside * far).lerp(middle, inside * (1 - far) * 0.6);
+      color.lerp(edge, smooth(0.55, 0.82, r) * (1 - smooth(0.9, 1, r)) * 0.85); // a dark border where the boot cut the crust
+      colors.set([color.r, color.g, color.b], i * 3);
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    this.printMesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), 6);
+    this.printMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.printMesh.frustumCulled = false;
+    this.printMesh.count = 0;
+    this.printMesh.visible = false;
+    this.printMesh.renderOrder = 1;
+    this.scene.add(this.printMesh);
+
+    // Snowfall: soft flakes recycled inside a box that follows the camera; positions are computed in the vertex shader.
+    const seeds = new Float32Array(1400 * 3);
+    for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute("position", new THREE.BufferAttribute(seeds, 3));
+    this.flakes = new THREE.Points(fg, new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { uTime: this.gu.uTime, uCam: this.gu.uCam, uLight: this.gu.uLight, uAmt: this.snowAmt, uNight: this.gu.uNight },
+      vertexShader: `
+        uniform float uTime, uAmt; uniform vec3 uCam; varying float vA;
+        void main(){
+          vec3 s = position;
+          vec3 q = fract(s + vec3(uTime * 0.012 * (s.z - 0.5), -uTime * (0.025 + 0.03 * s.x), uTime * 0.01));
+          vec3 wp = uCam + vec3((q.x - 0.5) * 26.0, q.y * 9.0 - 1.0, (q.z - 0.5) * 26.0);
+          vec4 mv = viewMatrix * vec4(wp, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = clamp((3.0 + 6.0 * s.y) * (s.z > 0.93 ? 2.4 : 1.0) * 38.0 / -mv.z, 2.0, 34.0);
+          vA = uAmt * (0.25 + 0.5 * s.x) * smoothstep(0.0, 0.15, q.y) * smoothstep(1.0, 0.8, q.y);
+        }`,
+      fragmentShader: `
+        uniform float uLight, uNight; varying float vA;
+        // Plain alpha blending: white flakes would vanish against the bright day sky, so by day they are a cool grey-blue.
+        void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; vec3 c = mix(vec3(0.55, 0.68, 0.9), vec3(1.0), uNight); gl_FragColor = vec4(c, min(1.0, vA * 1.8) * smoothstep(1.0, 0.25, d)); }`,
+    }));
+    this.flakes.frustumCulled = false;
+    this.flakes.visible = false;
+    this.scene.add(this.flakes);
+  }
+
+  private stepPrints(moving: boolean, dt: number, fx: number, fz: number) {
+    if (this.kind < 2) return;
+    if (moving) {
+      this.stride += WALK_SPEED * dt;
+      if (this.stride >= 0.62) {
+        this.stride -= 0.62;
+        this.side = -this.side;
+        // The avatar in pattern space (the world scrolls by `pos`), nudged to the left or right foot.
+        this.prints.push({ x: this.pos.x + fx * AHEAD - fz * 0.11 * this.side, z: this.pos.y + fz * AHEAD + fx * 0.11 * this.side, yaw: this.yaw + this.side * 0.08 }); // toes point slightly outward
+        if (this.prints.length > 6)this.prints.shift();
+      }
+    }
+    const o = new THREE.Object3D();
+    let n = 0;
+    for (const p of this.prints) {
+      const sx = p.x - this.pos.x, sz = p.z - this.pos.y;
+      if (sx * sx + sz * sz > 2000) continue;
+      o.position.set(sx, 0, sz);
+      o.rotation.set(0, p.yaw, 0);
+      o.scale.set(0.09, 1, 0.213);
+      o.updateMatrix();
+      this.printMesh.setMatrixAt(n++, o.matrix);
+    }
+    this.printMesh.count = n;
+    this.printMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  // Image-based light from a clear daytime sky, so skin and cloth pick up soft sky color.
+  private makeEnvironment() {
+    const envScene = new THREE.Scene();
+    const s = new Sky();
+    s.scale.setScalar(50);
+    const u = s.material.uniforms;
+    u.sunPosition.value.set(0.6, 0.55, 0.3).normalize();
+    u.cloudCoverage.value = 0.3;
+    u.showSunDisc.value = 0;
+    envScene.add(s);
+    const pm = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pm.fromScene(envScene).texture;
+    pm.dispose();
+  }
+
+  private bindDrag() {
+    let last: { x: number; y: number } | null = null;
+    const c = this.canvas;
+    c.addEventListener("pointerdown", (e) => { last = { x: e.clientX, y: e.clientY }; c.setPointerCapture(e.pointerId); });
+    c.addEventListener("pointermove", (e) => {
+      if (!last) return;
+      this.yaw -= (e.clientX - last.x) * 0.006;
+      this.pitch = Math.min(0.7, Math.max(-0.12, this.pitch + (e.clientY - last.y) * 0.004));
+      last = { x: e.clientX, y: e.clientY };
+    });
+    const end = () => (last = null);
+    c.addEventListener("pointerup", end);
+    c.addEventListener("pointercancel", end);
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth || innerWidth, h = this.canvas.clientHeight || innerHeight;
+    this.renderer.setSize(w, h, false);
+    this.composer?.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer?.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.ground?.getRenderTarget().setSize(Math.round(w * 0.6), Math.round(h * 0.6)); // keep the mirror sharp after a window resize
+  }
+
+  setMap(m: MapSpec) {
+    this.map = m;
+    const kind = m.ground.kind === "grass" ? 1 : m.ground.kind === "snow" ? 2 : m.ground.kind === "sand" ? 3 : 0;
+    this.kind = kind;
+    this.gu.uKind.value = kind;
+    this.ground.visible = kind === 0; // the mirror pass only runs on salt
+    this.plain.visible = kind !== 0;
+    this.grass.visible = kind === 1;
+    this.printMesh.visible = kind >= 2; // footprints stay in snow and sand
+    (this.printMesh.material as THREE.MeshBasicMaterial).color.set(kind === 3 ? "#d9b48a" : "#ffffff");
+    this.flakes.visible = false;
+    this.snowLeft = 0;
+    this.prints = [];
+    this.grassWind.value = 0.35 + m.ambience.wind * 0.9;
+    this.gu.uBase.value.set(m.ground.color);
+    this.gu.uReflect.value = kind === 3 ? 0.03 : m.ground.reflect;
+    this.gu.uCracks.value = kind === 0 ? m.ground.cracks : 0;
+    nightMat.uniforms.uAurora.value = m.sky.aurora ?? 0;
+    const u = this.sky.material.uniforms;
+    u.cloudCoverage.value = 0.1 + m.sky.clouds * 0.6;
+    u.cloudDensity.value = 0.4 + m.sky.clouds * 0.2;
+    u.turbidity.value = 1 + m.sky.haze * 9;
+    u.mieCoefficient.value = 0.0025; // less forward glare, so the sun can be looked at without a white-out
+    u.mieDirectionalG.value = 0.68;
+    u.rayleigh.value = 0.5 + m.sky.blue * 3.5;
+    nightMat.uniforms.uStars.value = m.sky.stars;
+    nightMat.uniforms.uCloud.value = m.sky.clouds;
+    this.windLevel = m.ambience.wind;
+    const natural = 0; // flat, hazy layered ridges (2D); the 3D range is used for snow-north only
+    this.rings.forEach((r) => { (r.material as THREE.ShaderMaterial).uniforms.uNatural.value = natural; });
+    const real = this.usesRange();
+    this.rings.forEach((r, i) => { r.scale.y = ridgeDist(i) * ridgeAngle(i) * (m.horizon.mountains / 0.55) + 0.001; r.visible = m.horizon.mountains > 0 && !real; });
+    this.range.visible = real;
+    this.range.scale.y = m.horizon.mountains / 0.8;
+    if (real) this.buildRange(Math.random() * 1000);
+  }
+
+  private photoUrl: Record<"day" | "night", string | null> = { day: null, night: null };
+  /** Use a sky picture for the day or the night phase (null = the procedural sky). */
+  setSkyPhoto(kind: "day" | "night", url: string | null) {
+    if (url === this.photoUrl[kind]) return;
+    this.photoUrl[kind] = url;
+    if (!url) {
+      if (kind === "night") nightMat.uniforms.uPhotoOn.value = 0;
+      else this.dayLoaded = false;
+      return;
+    }
+    new THREE.TextureLoader().load(url, (tex) => {
+      if (this.photoUrl[kind] !== url) return; // a newer pick arrived meanwhile
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const aspect = tex.image.width / tex.image.height;
+      if (kind === "night") {
+        const u = nightMat.uniforms;
+        u.uPhoto.value = tex; u.uPhotoAspect.value = aspect; u.uPhotoOn.value = 1;
+      } else {
+        dayMat.uniforms.uPhoto.value = tex; dayMat.uniforms.uAspect.value = aspect;
+        this.dayLoaded = true;
+      }
+    }, undefined, () => { this.photoUrl[kind] = null; });
+  }
+
+  /** New mountain shapes: every ridge gets a fresh random seed (nothing is fixed, so no two visits look the same). */
+  /** Fill the height field: ridged noise under an angular envelope (high massifs left and right of the first view, a saddle between). */
+  private buildRange(seed: number) {
+    const meadow = this.map?.ground.kind !== "snow"; // layered hills: rounded, low
+    const RS = 720, RR = 90, R0 = 380, R1 = 1550; // stay inside the haze dome (1700), which would otherwise whiten the far layers
+    const pos = this.range.geometry.attributes.position as THREE.BufferAttribute;
+    const hh = (x: number, y: number) => { const s = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453; return s - Math.floor(s); };
+    const vn = (x: number, y: number) => {
+      const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+      return hh(ix, iy) * (1 - u) * (1 - v) + hh(ix + 1, iy) * u * (1 - v) + hh(ix, iy + 1) * (1 - u) * v + hh(ix + 1, iy + 1) * u * v;
+    };
+    const ridged = (x: number, z: number) => {
+      let s = 0, a = 0.5, f = 1 / 1100;
+      for (let o = 0; o < 6; o++) { const r = 1 - Math.abs(2 * vn(x * f, z * f) - 1); s += a * r * r; a *= 0.5; f *= 2.1; }
+      return s / 0.97;
+    };
+    for (let j = 0; j <= RR; j++) {
+      const s = j / RR, r = R0 * Math.pow(R1 / R0, s);
+      for (let i = 0; i <= RS; i++) {
+        const a = (i / RS) * Math.PI * 2 - Math.PI, x = r * Math.cos(a), z = r * Math.sin(a);
+        const front = Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2));
+        const env = Math.max(0.2, 0.3 + 0.85 * Math.exp(-(((front + 0.3) / 0.2) ** 2)) + 0.9 * Math.exp(-(((front - 0.32) / 0.2) ** 2)) - 0.2 * Math.exp(-((front / 0.1) ** 2)));
+        const mask = Math.min(1, Math.max(0, (r - R0) / (R0 * 0.8)));
+        const h = env * r * (meadow ? 0.11 + 0.15 * s : 0.14 + 0.2 * s) * Math.pow(ridged(x, z), meadow ? 0.95 : 1.4) * mask * 1.5;
+        pos.setXYZ(j * (RS + 1) + i, x, h - 2 * (1 - mask), z);
+      }
+    }
+    pos.needsUpdate = true;
+    this.range.geometry.computeVertexNormals();
+  }
+
+  /** A small square JPEG of the current map at noon, for its card. The frame is drawn and read in the same task,
+   *  so no preserved drawing buffer is needed; the normal loop redraws the real hour right after. */
+  snapshot(size = 200): string {
+    const savedYaw = this.yaw, savedPitch = this.pitch;
+    this.yaw = 0; this.pitch = 0.12;
+    this.update(0, 11);
+    const src = this.renderer.domElement;
+    const side = Math.min(src.width, src.height * 0.8);
+    const out = document.createElement("canvas");
+    out.width = out.height = size;
+    // Centered on the horizon (about 60% down the frame), so sky, hills and ground all show.
+    const sy = Math.max(0, Math.min(src.height - side, src.height * 0.6 - side * 0.5));
+    out.getContext("2d")!.drawImage(src, (src.width - side) / 2, sy, side, side, 0, 0, size, size);
+    this.yaw = savedYaw; this.pitch = savedPitch;
+    return out.toDataURL("image/jpeg", 0.82);
+  }
+
+  private usesRange() { return !!this.map && this.map.horizon.mountains > 0; }
+
+  newScenery() {
+    const base = Math.random() * 1000;
+    if (this.usesRange()) this.buildRange(base);
+    const framed = this.map?.id === "snow-north" || this.map?.id === "grassland";
+    this.rings.forEach((ring, i) => {
+      const seed = base + i * 13;
+      const p = ring.geometry.attributes.position;
+      const cols = 721; // radial segments + 1; the first row is the top edge
+      const hs = new Float32Array(cols);
+      for (let v = 0; v < cols; v++) hs[v] = ridgeLine(Math.atan2(p.getZ(v), p.getX(v)), seed, framed, 0.85 + 0.95 * ridgeT(i)); // near ridges are rounded hills, far ones sharp peaks
+      let slope = ring.geometry.getAttribute("aSlope") as THREE.BufferAttribute | undefined;
+      if (!slope) ring.geometry.setAttribute("aSlope", (slope = new THREE.BufferAttribute(new Float32Array(p.count), 1)));
+      for (let v = 0; v < p.count; v++) {
+        const c = v % cols;
+        p.setY(v, p.getY(v) > 0 || v < cols ? hs[c] : -3);
+        slope.setX(v, hs[Math.min(cols - 1, c + 1)] - hs[Math.max(0, c - 1)]);
+      }
+      let aH = ring.geometry.getAttribute("aH") as THREE.BufferAttribute | undefined;
+      if (!aH) ring.geometry.setAttribute("aH", (aH = new THREE.BufferAttribute(new Float32Array(p.count), 1)));
+      for (let v = 0; v < p.count; v++) aH.setX(v, hs[v % cols]);
+      aH.needsUpdate = true;
+      slope.needsUpdate = true;
+      p.needsUpdate = true;
+      (ring.material as THREE.ShaderMaterial).uniforms.uSeed.value = seed;
+    });
+  }
+
+  setClothes(c: ClothesSpec) {
+    this.clothes = c;
+    for (const p of Object.values(this.persons)) p.setClothes(c);
+  }
+
+  setAnimation(file: string) {
+    this.animation = file;
+    for (const p of Object.values(this.persons)) void p.setAnimation(file);
+  }
+
+  /** Choose the person; each body is fetched the first time it is needed. */
+  setBody(id: string) {
+    const body = BODIES.find((x) => x.id === id) ?? BODIES[0];
+    let p = this.persons[body.id];
+    if (!p) {
+      p = this.persons[body.id] = new Person();
+      this.avatar.add(p.group);
+      if (this.clothes) p.setClothes(this.clothes);
+      void p.setAnimation(this.animation);
+      p.load(body.file, body.outfit).catch((e) => console.warn("person model failed", body.file, e));
+    }
+    this.person = p;
+    for (const q of Object.values(this.persons)) q.group.visible = q === p;
+  }
+
+  update(dt: number, hour: number) {
+    this.t += dt;
+    this.sit += ((this.sitting ? 1 : 0) - this.sit) * Math.min(1, dt * 5);
+    const moving = this.walking && !this.sitting;
+    this.amp += ((moving ? 1 : 0) - this.amp) * Math.min(1, dt * 6);
+    if (moving) this.gait += dt * 5.2;
+
+    // The avatar always faces the camera heading, so only its back is ever visible.
+    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    if (moving) this.pos.x += fx * WALK_SPEED * dt, this.pos.y += fz * WALK_SPEED * dt;
+    this.avatar.rotation.y = this.yaw;
+    this.avatar.position.set(fx * AHEAD, this.kind >= 2 ? 0.1 * this.sit : 0, fz * AHEAD); // sitting on snow or sand: lift the body so it is not buried
+    this.person.pose(this.gait, this.amp, this.sit, this.t);
+    this.stepPrints(moving, dt, fx, fz);
+
+    if (this.kind === 2) {
+      // Snowfall comes and goes: every 40-120 s roll a new amount, clear (30%) or anything from a flurry to a heavy fall.
+      if ((this.snowLeft -= dt) <= 0) {
+        this.snowLeft = 40 + Math.random() * 80;
+        this.snowGoal = Math.random() < 0.3 ? 0 : 0.15 + 0.85 * Math.random();
+      }
+      this.snowAmt.value += (this.snowGoal - this.snowAmt.value) * Math.min(1, dt * 0.25);
+      this.flakes.visible = this.snowAmt.value > 0.01;
+    }
+    this.updateSky(hour);
+
+    const d = this.dist, p = this.pitch;
+    const bx = Math.sin(this.yaw), bz = Math.cos(this.yaw);
+    this.camera.position.set(bx * Math.cos(p) * d, 1.0 + Math.sin(p) * d, bz * Math.cos(p) * d);
+    // Look up a little so the horizon sits about a third of the way up the screen and the sky fills the rest.
+    const tilt = 0.12 - (p - 0.12) * 0.6;
+    const c = this.camera.position;
+    this.camera.lookAt(c.x + fx * 10, c.y + Math.tan(tilt) * 10, c.z + fz * 10);
+    this.sky.position.copy(this.camera.position);
+    this.stars.position.copy(this.camera.position);
+    this.dayDome.position.copy(this.camera.position);
+    this.hazeDome.position.copy(this.camera.position);
+    for (const r of [...this.rings, this.range]) r.position.set(this.camera.position.x, 0, this.camera.position.z);
+
+    this.gu.uTime.value = this.t;
+    this.gu.uCam.value.copy(this.camera.position);
+    this.gu.uOffset.value.copy(this.pos);
+    this.composer.render();
+  }
+
+  private updateSky(hour: number) {
+    const a = ((hour - 6) / 24) * Math.PI * 2;
+    // The arc leans toward the front (-z): the sun rises on the right of the view and sets on the left.
+    const sun = new THREE.Vector3(Math.cos(a), Math.sin(a) * 0.85, -0.6).normalize();
+    const e = sun.y;
+    const day = smooth(0, 0.35, e);
+    const [from, to, t] = e > 0 ? [HORIZON.dusk, HORIZON.day, day] : [HORIZON.dusk, HORIZON.night, smooth(0, -0.25, e)];
+    const hor = from.clone().lerp(to, t);
+    this.night = e > 0 ? 0 : t;
+    const light = 0.28 + 0.72 * smooth(-0.1, 0.3, e);
+    this.sunUp = e > 0;
+    // A day picture replaces the physical sky until the sun is well below the horizon.
+    const showDay = this.dayLoaded && e > -0.12;
+    this.dayDome.visible = showDay;
+    this.sky.visible = !showDay;
+    dayMat.uniforms.uLight.value = smooth(-0.12, 0.25, e);
+    dayMat.uniforms.uTime.value = this.t;
+
+    const u = this.sky.material.uniforms;
+    u.sunPosition.value.copy(sun);
+    u.time.value = this.t;
+    u.cloudSpeed.value = 0.00002 * (0.5 + this.windLevel * 2);
+    nightMat.uniforms.uMoon.value.set(-Math.cos(a), -Math.sin(a) * 0.85, -0.6).normalize();
+    nightMat.uniforms.uNight.value = this.night;
+    nightMat.uniforms.uTime.value = this.t;
+    // The sky turns about a pole tilted 37 degrees from the horizon, one revolution per day.
+    const axis = new THREE.Vector3(0, Math.sin(0.65), -Math.cos(0.65));
+    nightMat.uniforms.uRot.value.setFromMatrix4(new THREE.Matrix4().makeRotationAxis(axis, -(hour / 24) * Math.PI * 2));
+
+    // Horizon band: scales with daylight, plus a cool glow of its own so the line never disappears at night.
+    this.gu.uHaze.value.copy(hor).multiplyScalar(4.6 * (0.12 + 0.88 * light)).add(NIGHT_HAZE.clone().multiplyScalar(this.night));
+    hazeMat.uniforms.uHaze.value.copy(this.gu.uHaze.value);
+    this.gu.uLight.value = (0.06 + 0.94 * smooth(-0.12, 0.3, e)) * 1.5; // salt turns dark at night
+    this.gu.uNight.value = this.night;
+
+    const lightDir = e > -0.05 ? sun : sun.clone().multiplyScalar(-1);
+    this.sunLight.position.copy(lightDir).multiplyScalar(50);
+    this.sunLight.color.set("#fff0d8").lerp(new THREE.Color("#b8c8ff"), this.night).lerp(new THREE.Color("#ffb27a"), (1 - day) * (e > 0 ? 1 : 0) * 0.8);
+    this.sunLight.intensity = 0.3 + 2.4 * smooth(-0.05, 0.4, Math.abs(lightDir.y)) * (e > -0.05 ? 1 : 0.15);
+    this.hemi.color.copy(hor);
+    // Glow on the moon and stars at night; by day the sky itself is bright everywhere, so it must not bloom.
+    // (The daytime sun is thousands of times brighter than the rest, so any bloom would flood the whole screen.)
+    this.bloom.enabled = this.night > 0.02;
+    this.bloom.strength = 0.1 + 0.2 * this.night;
+    this.hemi.intensity = 0.05 + 0.2 * light;
+    this.scene.environmentIntensity = 0.1 + 0.6 * light;
+
+    const mc = new THREE.Color(this.map?.horizon.color ?? "#8a9bb5");
+    const ru = (this.range.material as THREE.ShaderMaterial).uniforms;
+    ru.uHaze.value.copy(hor).multiplyScalar(0.9 + 0.1 * light);
+    ru.uSun.value.copy(lightDir).normalize();
+    ru.uLight.value = light * (1 - 0.45 * this.night);
+    ru.uNight.value = this.night;
+    ru.uSnow.value = this.map?.horizon.snow ?? 0;
+    const kindName = this.map?.ground.kind ?? "salt", salt = kindName === "salt";
+    ru.uDeep.value = salt ? 1 : 0;
+    ru.uTrees.value = this.map?.horizon.trees ?? 0;
+    ru.uMeadow.value = kindName === "snow" ? 0 : 1;
+    // Slope colors come from the map's horizon color: dark slopes in front, a lighter tone of it on the upper ridges.
+    const hc = new THREE.Color(this.map?.horizon.color ?? "#8a9bb5");
+    ru.uCol1.value.copy(hc).multiplyScalar(0.45);
+    ru.uCol2.value.copy(hc).multiplyScalar(0.85);
+    const saltDesert = this.map?.id === "salt-desert", meadow = this.kind === 1; // meadow ridges stay pale and hazy, never dark at the foot
+    this.rings.forEach((r, i) => {
+      const u = (r.material as THREE.ShaderMaterial).uniforms;
+      const tt = ridgeT(i);
+      u.uHaze.value.copy(hor).multiplyScalar(0.9 + 0.1 * light);
+      // Aerial perspective: dark blue, then teal, then the color of the haze itself.
+      u.uTop.value.copy(RIDGE_NEAR).lerp(RIDGE_MID, smooth(0, 0.55, tt)).lerp(mc, smooth(0.5, 1, tt) * 0.55)
+        .multiplyScalar(1.8 * light * (1 - 0.45 * this.night) + (saltDesert ? 0.25 * this.night : 0))
+        .lerp(u.uHaze.value, Math.pow(tt, 1.3) * (saltDesert ? 0.6 : meadow ? 0.75 : 0.92));
+      u.uMist.value = (meadow ? 0.55 : 0.18) + (saltDesert ? 0.5 : meadow ? 0.45 : 0.82) * Math.pow(tt, 1.2); // near ridges are solid, far ones are mostly fog
+      u.uRim.value = 0.45 * (1 - tt) + 0.1;
+      u.uSnow.value = (this.map?.horizon.snow ?? 0) * (1 - 0.35 * tt);
+      u.uFoot.value = meadow ? 0.55 : 0;
+      // Meadow hills like a misty photograph: deep teal in front, every layer paler and bluer behind it, mist pooling at each foot.
+      if (meadow) u.uTop.value.copy(MEADOW_NEAR).lerp(MEADOW_FAR, Math.pow(tt, 0.8)).multiplyScalar(1.7 * light * (1 - 0.45 * this.night)).lerp(u.uHaze.value, 0.03 + 0.78 * Math.pow(tt, 1.15));
+      u.uForest.value = (this.map?.horizon.trees ?? 0) * (1 - tt);
+      u.uSnowCol.value.set(0.92, 0.96, 1.0).multiplyScalar(2.3 * light * (1 - 0.45 * this.night) + 0.5 * this.night).lerp(u.uHaze.value, Math.pow(tt, 1.3) * 0.5);
+    });
+  }
+}
+
+function smooth(a: number, b: number, x: number) {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}

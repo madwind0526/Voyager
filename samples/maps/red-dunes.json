@@ -1,0 +1,23 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Red Dunes",
+  "ground": {
+    "kind": "sand",
+    "color": "#c47a45"
+  },
+  "sky": {
+    "clouds": 0.1,
+    "stars": 1,
+    "haze": 0.1,
+    "blue": 0.7
+  },
+  "horizon": {
+    "mountains": 0.35,
+    "color": "#9a5a3c"
+  },
+  "ambience": {
+    "wind": 0.15,
+    "birds": 0.05,
+    "insects": 0.5
+  }
+}

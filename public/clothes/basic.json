@@ -1,0 +1,16 @@
+{
+  "schema": "voyager.clothes/2",
+  "id": "basic",
+  "name": "Basic",
+  "author": "Voyager",
+  "skin": "#e8c4a0",
+  "top": {
+    "color": "#cdd2d6"
+  },
+  "bottom": {
+    "color": "#4a5262"
+  },
+  "shoes": {
+    "color": "#2f2f33"
+  }
+}

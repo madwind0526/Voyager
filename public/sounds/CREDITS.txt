@@ -1,0 +1,10 @@
+Ambience recordings (all CC0 / public domain, from OpenGameArt.org)
+- crickets.mp3: "Crickets Ambient Noise - loopable" by Wolfgang_ (CC0) https://opengameart.org/content/crickets-ambient-noise-loopable
+- forest.mp3:   "Forest Ambience" by TinyWorlds (CC0) https://opengameart.org/content/forest-ambience
+- wind.ogg, wind2.ogg: "Wind" by IgnasD (CC0) https://opengameart.org/content/wind
+Sky:
+- ../sky/starmap.jpg: NASA Scientific Visualization Studio, "Deep Star Maps" (public domain) https://svs.gsfc.nasa.gov/3895
+Models (public/models):
+- person-f.glb: "brunette-t.glb" from https://github.com/met4citizen/TalkingHead (Ready Player Me avatar, CC BY-NC 4.0: attribution required, NON-COMMERCIAL use only).
+- ../sky/moon.jpg: NASA Scientific Visualization Studio "Moon CGI Kit" (LRO color map, public domain) https://svs.gsfc.nasa.gov/4720
+- models/people/*.glb: Quaternius "Ultimate Animated Characters" (CC0) https://quaternius.com (Casual, Suit, Cowboy, Viking, Ninja, Kimono, Witch).

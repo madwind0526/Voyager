@@ -1,0 +1,19 @@
+{
+  "schema": "voyager.clothes/2",
+  "id": "stripe",
+  "name": "Stripe",
+  "author": "Voyager",
+  "skin": "#e8c4a0",
+  "top": {
+    "color": "#27364f",
+    "color2": "#f2f2ee",
+    "pattern": "stripe",
+    "scale": 6
+  },
+  "bottom": {
+    "color": "#c9b99a"
+  },
+  "shoes": {
+    "color": "#f2f2ee"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Sand Desert",
+  "ground": {
+    "kind": "sand",
+    "color": "#d9a95f"
+  },
+  "sky": {
+    "clouds": 0.15,
+    "stars": 1,
+    "haze": 0.35,
+    "blue": 0.7
+  },
+  "horizon": {
+    "mountains": 0.45,
+    "color": "#9a5a3c"
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.2,
+    "insects": 0.2
+  }
+}

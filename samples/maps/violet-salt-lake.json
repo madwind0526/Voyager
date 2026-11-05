@@ -1,0 +1,26 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Violet Salt Lake",
+  "author": "Voyager",
+  "ground": {
+    "kind": "salt",
+    "color": "#f1e6ee",
+    "reflect": 0.95,
+    "cracks": 0.25
+  },
+  "sky": {
+    "clouds": 0.9,
+    "stars": 1,
+    "haze": 0.35,
+    "blue": 0.4
+  },
+  "horizon": {
+    "mountains": 0.65,
+    "color": "#5a46b8"
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.2,
+    "insects": 0.5
+  }
+}

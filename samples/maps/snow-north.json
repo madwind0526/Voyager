@@ -1,0 +1,30 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Snow North",
+  "author": "Voyager",
+  "ground": {
+    "kind": "snow",
+    "color": "#e8f0fa",
+    "reflect": 0.06,
+    "cracks": 0
+  },
+  "sky": {
+    "clouds": 0.3,
+    "stars": 1,
+    "haze": 0.05,
+    "blue": 0.8,
+    "aurora": 1,
+    "nightPhotos": "aurora"
+  },
+  "horizon": {
+    "mountains": 0.8,
+    "color": "#8fa3bd",
+    "snow": 0.9,
+    "trees": 1
+  },
+  "ambience": {
+    "wind": 0.55,
+    "birds": 0.05,
+    "insects": 0
+  }
+}

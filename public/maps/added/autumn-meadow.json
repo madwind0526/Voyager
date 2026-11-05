@@ -1,0 +1,30 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Autumn Meadow",
+  "author": "Voyager",
+  "ground": {
+    "kind": "grass",
+    "color": "#c98a22",
+    "reflect": 0.85,
+    "cracks": 0.4
+  },
+  "sky": {
+    "clouds": 0.6,
+    "stars": 1,
+    "haze": 0.3,
+    "blue": 0.55,
+    "aurora": 0,
+    "nightPhotos": "night"
+  },
+  "horizon": {
+    "mountains": 0.7,
+    "color": "#9a5a3c",
+    "snow": 0,
+    "trees": 0
+  },
+  "ambience": {
+    "wind": 0.8,
+    "birds": 0.5,
+    "insects": 0.3
+  }
+}

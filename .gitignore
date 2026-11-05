@@ -1,0 +1,24 @@
+node_modules
+dist
+data/
+.playwright-mcp
+*.log
+
+# Third-party assets that are not redistributable here (see docs/ASSETS.md)
+public/models/people/*
+!public/models/people/README.txt
+!public/models/people/backup/
+public/models/people/backup/*
+!public/models/people/backup/*.glb
+public/models/animations/**/*.fbx
+
+# Sky photos and map reference pictures: your own collection (the READMEs in each folder stay)
+public/sky/day/*
+!public/sky/day/README.txt
+public/sky/night/*
+!public/sky/night/README.txt
+public/sky/aurora/*
+!public/sky/aurora/README.txt
+public/maps/grassland/
+public/maps/snow-north/
+public/maps/salt-desert/

@@ -1,0 +1,29 @@
+{
+  "schema": "voyager.map/1",
+  "id": "grassland",
+  "name": "Grassland",
+  "author": "Voyager",
+  "thumb": "/maps/grassland.jpg",
+  "ground": {
+    "kind": "grass",
+    "color": "#62b02a",
+    "reflect": 0.03,
+    "cracks": 0
+  },
+  "sky": {
+    "clouds": 0.55,
+    "stars": 1,
+    "haze": 0.12,
+    "blue": 0.7
+  },
+  "horizon": {
+    "mountains": 0.75,
+    "color": "#4f9aa0",
+    "snow": 0
+  },
+  "ambience": {
+    "wind": 0.75,
+    "birds": 0.6,
+    "insects": 0.5
+  }
+}

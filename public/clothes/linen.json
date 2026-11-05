@@ -1,0 +1,16 @@
+{
+  "schema": "voyager.clothes/2",
+  "id": "linen",
+  "name": "Linen",
+  "author": "Voyager",
+  "skin": "#e8c4a0",
+  "top": {
+    "color": "#dcd5c4"
+  },
+  "bottom": {
+    "color": "#8a8f98"
+  },
+  "shoes": {
+    "color": "#3a3a3a"
+  }
+}

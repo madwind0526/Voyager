@@ -1,0 +1,30 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Sand Desert",
+  "author": "",
+  "ground": {
+    "kind": "sand",
+    "color": "#d9a95f",
+    "reflect": 0.85,
+    "cracks": 0.4
+  },
+  "sky": {
+    "clouds": 0.15,
+    "stars": 1,
+    "haze": 0.35,
+    "blue": 0.7,
+    "aurora": 0,
+    "nightPhotos": "night"
+  },
+  "horizon": {
+    "mountains": 0.45,
+    "color": "#9a5a3c",
+    "snow": 0,
+    "trees": 0
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.2,
+    "insects": 0.2
+  }
+}

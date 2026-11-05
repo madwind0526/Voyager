@@ -1,0 +1,26 @@
+﻿# State
+
+## Current Wave
+
+- **Wave:** 13
+- **Status:** Ready
+- **Cache Status:** CLEAN
+- **Last Checkpoint:** Sit transition applies pelvis descent during walk fade; app fills and resizes with viewport
+
+## Wave History
+
+| Wave | Work | Status |
+|------|------|--------|
+| 1 | Project initialization and v1 implementation | Done |
+| 2 | Map atmosphere and mobile layout improvements | Done |
+| 3 | Settings map card layout | Done |
+| 4 | Mixamo FBX character loading and Standard Walk animation | Done |
+| 5 | Mixamo walk in-place root-motion correction | Done |
+| 6 | Imported character list and fallback duplicate cleanup | Done |
+| 7 | Imported character catalog root cause and transparent audio controls | Done |
+| 8 | Durable profile and settings persistence across origins | Done |
+| 9 | Profile walk animation selection and clip classification | Done |
+| 10 | English Walk/Dance animation menu and dance file classification | Done |
+| 11 | Grounded sit pose, animation folders, and dark dropdown options | Done |
+| 12 | Responsive full-viewport scene | Done |
+| 13 | Sit transition timing and viewport root sizing | Done |
