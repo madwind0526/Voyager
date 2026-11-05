@@ -6,7 +6,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { WALK_SPEED } from "./config";
-import { Person } from "./avatar";
+import { Person, type Motion } from "./avatar";
 import { BODIES } from "./bodies";
 import type { ClothesSpec, MapSpec } from "./types";
 
@@ -887,6 +887,8 @@ export class World {
     this.clothes = c;
     for (const p of Object.values(this.persons)) p.setClothes(c);
   }
+
+  setMotion(m: Motion) { Person.motion = m; }
 
   setAnimation(file: string) {
     this.animation = file;

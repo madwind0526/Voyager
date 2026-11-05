@@ -4,13 +4,12 @@ data/
 .playwright-mcp
 *.log
 
-# Third-party assets that are not redistributable here (see docs/ASSETS.md)
+# Only CC0 / public-domain assets are committed. Other characters and animations stay on your computer.
 public/models/people/*
 !public/models/people/README.txt
-!public/models/people/backup/
-public/models/people/backup/*
-!public/models/people/backup/*.glb
+!public/models/people/*.glb
 public/models/animations/**/*.fbx
+public/models/person-f.glb
 
 # Map reference pictures: not needed to run the app
 public/maps/grassland/

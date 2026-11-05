@@ -5,6 +5,7 @@ export interface Settings {
   name: string;
   body: string; // id from bodies.ts
   animation: string;
+  motion: "clips" | "procedural"; // how rigs that carry their own clips move
   tz: string;
   cycle: number; // hours for one full day-night loop: 24, 12, 8 or 6
   playlist: string[];
@@ -26,7 +27,7 @@ export interface Settings {
 const KEY = "voyager.settings";
 let saveTimer = 0;
 const defaults: Settings = {
-  name: "", body: "x:m_Casual.glb", animation: "walk/Standard Walk.fbx", tz: "auto", cycle: 24, playlist: [], lastSky: {}, critters: false, shuffle: true, repeat: "all", musicVol: 0.6, ambientVol: 0.6,
+  name: "", body: "x:m_Casual.glb", animation: "walk/Standard Walk.fbx", motion: "clips", tz: "auto", cycle: 24, playlist: [], lastSky: {}, critters: false, shuffle: true, repeat: "all", musicVol: 0.6, ambientVol: 0.6,
   musicPath: "", musicKind: "dir", eq: Array(10).fill(0), eqPreset: "Flat",
   mapId: "salt-desert", maps: {}, pictures: {},
 };

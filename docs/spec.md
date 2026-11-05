@@ -4,7 +4,7 @@ Clothes and maps are plain JSON files, validated by `shared/spec.mjs` (the same 
 
 ## Clothes — `voyager.clothes/2`
 
-The realistic female (`public/models/person-f.glb`) is a rigged human model. Clothes recolor or pattern its parts; the shape of the clothing itself comes from the model.
+The clothes format below dates from the Ready Player Me character (`public/models/person-f.glb`, not bundled in the repository: CC BY-NC). It is not used by the current profile, which only picks a character. Clothes recolor or pattern its parts; the shape of the clothing itself comes from the model.
 
 ```json
 {

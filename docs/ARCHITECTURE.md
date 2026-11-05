@@ -25,7 +25,7 @@ browser                                   server (server/index.mjs)
 
 ## People (`src/avatar.ts`, `src/bodies.ts`)
 
-Rigged humanoids (Ready Player Me or Mixamo bone names, or Quaternius flat-color rigs through `BONE_ALIAS`). Poses are procedural in the model's rest frame; Mixamo walk and dance clips are retargeted when present. `src/thumbs.ts` renders the character pictures with a second offscreen renderer.
+Rigged humanoids (Ready Player Me or Mixamo bone names, or Quaternius flat-color rigs through `BONE_ALIAS`). Rigs that carry their own clips (the bundled Quaternius characters) play Idle, Walk and SitDown from their files (`Person.motion = "clips"`); the code-driven pose in the model's rest frame (`"procedural"`) remains as the other choice. Mixamo rigs use retargeted Mixamo walk clips when present. `src/thumbs.ts` renders the character pictures with a second offscreen renderer.
 
 ## Audio (`src/audio.ts`)
 

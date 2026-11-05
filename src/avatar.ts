@@ -52,7 +52,11 @@ interface Rest { local: THREE.Quaternion; parentWorld: THREE.Quaternion }
 const X = new THREE.Vector3(1, 0, 0);
 const Y = new THREE.Vector3(0, 1, 0);
 
+export type Motion = "clips" | "procedural";
+
 export class Person {
+  /** "clips": rigs that carry their own animation clips (Quaternius) play those; "procedural": the built-in code-driven pose. */
+  static motion: Motion = "clips";
   readonly group = new THREE.Group(); // faces -z, feet on y = 0
   private model?: THREE.Object3D;
   private bones: Record<string, THREE.Object3D> = {};
@@ -71,12 +75,21 @@ export class Person {
   private animationFile = DEFAULT_ANIMATION;
   private animationRoot?: THREE.Object3D;
   private walkLoadId = 0;
+  private ownClips: THREE.AnimationClip[] = [];
+  private ownMixer?: THREE.AnimationMixer;
+  private ownActs: Record<string, THREE.AnimationAction> = {};
+  private ownCur = "";
+  private ownTime = 0;
 
   async load(url: string, outfit: Outfit = DEFAULT_OUTFIT) {
     const isFbx = /\.fbx$/i.test(url);
-    const model = isFbx
-      ? await new FBXLoader().loadAsync(url)
-      : (await new GLTFLoader().loadAsync(url)).scene;
+    let model: THREE.Object3D;
+    if (isFbx) model = await new FBXLoader().loadAsync(url);
+    else {
+      const gltf = await new GLTFLoader().loadAsync(url);
+      model = gltf.scene;
+      this.ownClips = gltf.animations; // Quaternius characters ship with Idle, Walk, SitDown, ...
+    }
     model.updateMatrixWorld(true);
 
     model.traverse((o) => {
@@ -250,6 +263,8 @@ export class Person {
   // gait: walk phase, amp: walk amount 0..1, sit: 0..1, t: seconds
   pose(gait: number, amp: number, sit: number, t: number) {
     if (!this.model) return;
+    if (Person.motion === "clips" && this.ownClips.length && !this.isMixamoRig) { this.poseClips(amp, sit, t); return; }
+    if (this.ownCur) { this.ownMixer?.stopAllAction(); this.ownCur = ""; } // back to the code-driven pose
     if (this.mixer && this.walkAction && amp > 0.01 && sit < 0.95) {
       if (!this.walkAction.isRunning()) {
         this.proceduralPose(gait, amp, sit, t);
@@ -265,6 +280,31 @@ export class Person {
     }
     if (this.walkAction?.isRunning()) this.walkAction.stop();
     this.proceduralPose(gait, amp, sit, t);
+  }
+
+  // The rig's own clips: Idle when still, Walk while walking, SitDown (held on its last frame) while sitting.
+  private poseClips(amp: number, sit: number, t: number) {
+    if (!this.ownMixer && this.animationRoot) {
+      this.ownMixer = new THREE.AnimationMixer(this.animationRoot);
+      const find = (re: RegExp) => this.ownClips.find((c) => re.test(c.name));
+      for (const [key, clip] of [["idle", find(/^idle$/i)], ["walk", find(/^walk$/i)], ["sit", find(/^sitdown$/i)]] as const) {
+        if (!clip) continue;
+        const a = this.ownMixer.clipAction(clip);
+        if (key === "sit") { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+        this.ownActs[key] = a;
+      }
+    }
+    if (!this.ownMixer) return;
+    const want = sit > 0.5 && this.ownActs.sit ? "sit" : amp > 0.05 && this.ownActs.walk ? "walk" : "idle";
+    if (want !== this.ownCur && this.ownActs[want]) {
+      const next = this.ownActs[want];
+      next.reset().setEffectiveWeight(1).play();
+      if (this.ownCur) this.ownActs[this.ownCur].crossFadeTo(next, 0.3, false);
+      this.ownCur = want;
+    }
+    this.ownMixer.update(Math.min(0.1, Math.max(0, t - this.ownTime)));
+    this.ownTime = t;
+    if (this.model) this.model.position.y = 0;
   }
 
   private proceduralPose(gait: number, amp: number, sit: number, t: number) {
