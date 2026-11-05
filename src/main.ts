@@ -419,15 +419,16 @@ function openSettings() {
     // Native chooser, used on touch devices and wherever the built-in explorer is not available.
     const nativePick = (kind: "dir" | "list") => {
       const f = h("input"); f.type = "file";
-      if (kind === "dir") { (f as any).webkitdirectory = true; f.multiple = true; } else f.accept = ".m3u,.m3u8,.pls";
+      if (kind === "dir") { (f as any).webkitdirectory = true; f.multiple = true; f.accept = "audio/*"; } else f.accept = ".m3u,.m3u8,.pls";
       f.onchange = async () => {
         if (!f.files?.length) return;
         if (kind === "dir") {
-          const files = [...f.files].filter((x) => AUDIO.test(x.name)).sort((a, b) => a.webkitRelativePath.localeCompare(b.webkitRelativePath, undefined, { numeric: true }));
+          const rel = (x: File) => x.webkitRelativePath || x.name; // phone file choosers give several files, not a folder
+          const files = [...f.files].filter((x) => AUDIO.test(x.name) || x.type.startsWith("audio/")).sort((a, b) => rel(a).localeCompare(rel(b), undefined, { numeric: true }));
           if (!files.length) return alert("No music files found");
           local.forEach(URL.revokeObjectURL);
           local = files.map((x) => URL.createObjectURL(x));
-          localLabel = `${files[0].webkitRelativePath.split("/")[0]} · ${files.length}`;
+          localLabel = `${files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : files[0].name} · ${files.length}`;
         } else {
           const urls = (await f.files[0].text()).split(/\r?\n/).map((x) => x.trim()).filter((x) => /^https?:\/\//i.test(x));
           if (!urls.length) return alert("This playlist has no web addresses. Choose a folder instead.");
