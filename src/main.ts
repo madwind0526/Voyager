@@ -1,8 +1,8 @@
 import "@fontsource/orbitron/600.css";
 import "./style.css";
-import { PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, Wind, X } from "lucide";
+import { Coffee, PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, Wind, X } from "lucide";
 import { validateMap } from "../shared/spec.mjs";
-import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS } from "./config";
+import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS, SUPPORT_URL } from "./config";
 import { EQ_LABELS, EQ_PRESETS, Sound } from "./audio";
 import { load, normalize, restore, save } from "./state";
 import { dayHour } from "./time";
@@ -124,7 +124,7 @@ hud.append(
   stam, clock,
   player,
   h("div", "corner tr", btn(User, "Profile", () => openProfile())),
-  h("div", "corner bl", btn(Users, "Community", () => openCommunity()), btn(Cog, "Settings", () => openSettings())),
+  h("div", "corner bl", btn(Coffee, "Buy me a coffee", () => window.open(SUPPORT_URL, "_blank", "noopener")), btn(Cog, "Settings", () => openSettings())),
   h("div", "corner br", volBox, walkBtn),
 );
 
@@ -502,6 +502,7 @@ function openSettings() {
   });
 }
 
+// On hold: the community button is not shown for now (the server API stays).
 function openCommunity() {
   let items: any[] | null = null;
   let failed = false;

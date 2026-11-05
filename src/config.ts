@@ -5,3 +5,7 @@ export const DEFAULT_TRACK = "https://www.youtube.com/watch?v=1t39vq3LdRs&list=P
 export const DRAIN_SECONDS = 180;
 export const REFILL_SECONDS = 30;
 export const WALK_SPEED = 1.4; // meters per second
+
+// "Buy me a coffee" page opened by the coffee button above Settings. Replace with your own page, for example
+// "https://buymeacoffee.com/your-name" (see README, "Buy me a coffee").
+export const SUPPORT_URL = "https://buymeacoffee.com/";

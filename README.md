@@ -48,7 +48,7 @@ To try it on a phone on the same network, set `HOST=0.0.0.0` before starting the
 
 1. Press the play button on the start screen.
 2. Drag the screen to turn; the person walks where you face. The footprints button (bottom right) toggles walk and sit. When stamina (top left) reaches 0 the person must sit until it is full again.
-3. Icons: profile (top right: your name and character), community and settings (bottom left), volume and walk/sit (bottom right), music controls (bottom center).
+3. Icons: profile (top right: your name and character), coffee and settings (bottom left), volume and walk/sit (bottom right), music controls (bottom center).
 4. **Settings**: time zone, day length, map cards, wind volume and the bird toggle, music source (URL, folder, playlist file), equalizer.
 5. **Add a map**: press the dashed **+** card in the map list and choose a `.json` map file. The app takes a picture of the map for its card. The trash icon removes a map from the list; the file stays in `public/maps/added/` (the list itself lives in the browser, so if its data is cleared, add the files again with **+**).
 6. **Profile**: name and character. For Mixamo characters the walk animation can be chosen too, with **Random** picking a new one each time the person rests and gets up.
@@ -66,6 +66,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Set `sdk.dir` in `android/local.properties` (not committed) and `JAVA_HOME` to Android Studio's `jbr` folder. The app icon is the Salt Desert card picture. In the settings, the folder button opens the phone's folder chooser: every audio file below the chosen folder, sub-folders included, is played in order (or shuffled), and the choice is kept after the app is closed (the app asks once for permission to read music). The default music is a YouTube playlist; inside the app's web view it may not play, so choose a music URL in the settings if it stays silent.
+
+## Buy me a coffee
+
+A coffee button sits above Settings. It opens the page set in `src/config.ts` (`SUPPORT_URL`). To make your own page: sign up at https://buymeacoffee.com, create your page (the address looks like `https://buymeacoffee.com/your-name`), then put that address into `SUPPORT_URL` and rebuild.
 
 ## Make your own map
 
