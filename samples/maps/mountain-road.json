@@ -1,0 +1,35 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Mountain Road",
+  "ground": {
+    "kind": "grass",
+    "color": "#4f8a2a",
+    "path": 1,
+    "pathColor": "#3a3c40",
+    "pathStyle": "road"
+  },
+  "sky": {
+    "clouds": 0.4,
+    "haze": 0.2,
+    "blue": 0.7
+  },
+  "horizon": {
+    "mountains": 1,
+    "color": "#3f7a4a",
+    "height": 0.42,
+    "layout": "ahead"
+  },
+  "scenery": {
+    "trees": 0.9,
+    "treeColor": "#3f7a3a",
+    "treeType": "broadleaf"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.3
+  }
+}

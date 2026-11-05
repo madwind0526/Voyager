@@ -194,6 +194,7 @@ const groundShader = {
     uBase: { value: new THREE.Color("#e8f0f4") }, uHaze: { value: new THREE.Color() },
     uReflect: { value: 0.85 }, uCracks: { value: 0.4 }, uLight: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uKind: { value: 0 }, // uKind: 0 salt mirror, 1 meadow, 2 snow, 3 sand
     uCam: { value: new THREE.Vector3() }, uOffset: { value: new THREE.Vector2() },
+    uRoad: { value: 0 }, // 1: the path is an asphalt road with lane lines
     uSea: { value: 0 }, // sand maps: how close the sea on the right comes (0 = none)
     uPath: { value: 0 }, uPathCol: { value: new THREE.Color("#7a6040") }, // half-width of a straight path along the walking direction (0 = none)
   },
@@ -208,7 +209,7 @@ const groundShader = {
     }`,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse; uniform vec3 uBase, uCam, uHaze;
-    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea; uniform vec2 uOffset; uniform vec3 uPathCol;
+    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea, uRoad; uniform vec2 uOffset; uniform vec3 uPathCol;
     varying vec4 vUv; varying vec3 vWorld;
     ${GLSL_NOISE}
     float edge(vec2 p){
@@ -293,7 +294,16 @@ const groundShader = {
           base = mix(base, water, smoothstep(-0.08, 0.08, sd));
         }
       }
-      if (uPath > 0.0 && uKind > 0.5) {
+      if (uPath > 0.0 && uKind > 0.5 && uRoad > 0.5) {
+        // Asphalt: a worn surface, white lines along both edges and a double yellow line down the middle.
+        float ax = abs(w.x);
+        float pm = 1.0 - smoothstep(-0.04, 0.06, ax - uPath);
+        float lit = uLight * 1.4 + 0.1 * uNight;
+        vec3 road = uPathCol * lit * (0.82 + 0.22 * noise(w * 18.0)) * (0.9 + 0.2 * noise(vec2(w.x * 0.8, w.y * 0.05)));
+        road = mix(road, vec3(0.9) * lit, smoothstep(0.07, 0.03, abs(ax - (uPath - 0.45))) * 0.85);
+        road = mix(road, vec3(0.95, 0.75, 0.1) * lit, smoothstep(0.06, 0.02, abs(ax - 0.1)) * 0.9);
+        base = mix(base, road, pm);
+      } else if (uPath > 0.0 && uKind > 0.5) {
         // A worn path straight ahead: ragged edges, two faint wheel ruts, a little mottling.
         float ragged = (noise(vec2(w.y * 0.35, 3.0)) - 0.5) * 0.7 + (noise(w * 2.5) - 0.5) * 0.25;
         float pm = 1.0 - smoothstep(-0.3, 0.3, abs(w.x) - (uPath + ragged));
@@ -326,10 +336,10 @@ const HORIZON = { day: new THREE.Color("#c9dcee"), dusk: new THREE.Color("#f0a47
 const rangeMat = () =>
   new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
-    uniforms: { uHaze: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(0.5, 0.7, 0.3) }, uLight: { value: 1 }, uNight: { value: 0 }, uSnow: { value: 1 }, uMeadow: { value: 0 }, uDeep: { value: 0 }, uTrees: { value: 0 }, uCol1: { value: new THREE.Color() }, uCol2: { value: new THREE.Color() } },
+    uniforms: { uHaze: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(0.5, 0.7, 0.3) }, uLight: { value: 1 }, uNight: { value: 0 }, uSnow: { value: 1 }, uMeadow: { value: 0 }, uDeep: { value: 0 }, uTrees: { value: 0 }, uTop: { value: 400 }, uFogK: { value: 0.0011 }, uCol1: { value: new THREE.Color() }, uCol2: { value: new THREE.Color() } },
     vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normal; vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uHaze, uSun, uCol1, uCol2; uniform float uLight, uNight, uSnow, uMeadow, uDeep, uTrees; varying vec3 vN; varying vec3 vP;
+      uniform vec3 uHaze, uSun, uCol1, uCol2; uniform float uLight, uNight, uSnow, uMeadow, uDeep, uTrees, uTop, uFogK; varying vec3 vN; varying vec3 vP;
       ${GLSL_NOISE}
       void main(){
         vec3 n = normalize(vN); if (n.y < 0.0) n = -n;
@@ -349,8 +359,13 @@ const rangeMat = () =>
         if (uMeadow > 0.5) {
           vec3 forest = mix(uCol1, uCol2, fine);
           col = forest * (0.45 + 1.1 * lit) * (mix(1.5, 1.0, uDeep) * uLight + 0.2 * uNight);
+          // Snow above the snow line on the high peaks, thinning out on the steep rock faces.
+          float line = uTop * (0.78 - 0.3 * uSnow) + (grain - 0.5) * uTop * 0.2;
+          float cap = uSnow * smoothstep(line, line + uTop * 0.12, vP.y) * smoothstep(0.7, 0.35, steep + (fine - 0.5) * 0.4);
+          vec3 snowCol = vec3(0.97, 0.99, 1.0) * (0.85 + 0.9 * lit) * (mix(1.5, 1.0, uDeep) * uLight + 0.2 * uNight) + vec3(0.0, 0.02, 0.06) * (1.0 - lit);
+          col = mix(col, snowCol, cap);
         }
-        float fog = 1.0 - exp(-dist * mix(0.00032, mix(0.0011, 0.0016, uDeep), uMeadow));
+        float fog = 1.0 - exp(-dist * mix(0.00032, mix(uFogK, 0.0016, uDeep), uMeadow));
         fog = max(fog, (1.0 - smoothstep(0.0, 220.0, vP.y)) * (1.0 - exp(-dist * 0.0012)) * mix(0.8, 0.55, uMeadow)); // valley mist
         col = mix(col, uHaze * mix(vec3(1.0), vec3(0.42, 0.54, 0.8), uDeep), clamp(fog, 0.0, mix(0.96, 0.78, uDeep))); // a deep-colored range fades to a darker blue haze, not to white
         gl_FragColor = vec4(col, 1.0);
@@ -393,8 +408,11 @@ export class World {
   private plain!: THREE.Mesh; // meadow and snow: the same ground shader without the mirror pass
   private grass!: THREE.Mesh;
   private grassWind!: THREE.IUniform;
-  private trees!: THREE.Mesh; // conifers on both sides of a path
+  private treeSets: Partial<Record<string, THREE.Mesh>> = {}; // trees on both sides of a path, built when a map first needs the kind
   private treeDens = { value: 0 };
+  private flowerAmt = { value: 1 }; // how many blades are wildflowers (1 = about 3.5%)
+  private flowerN = { value: 0 }; // number of custom flower colors (0 = the default mix)
+  private flowerCols = { value: [new THREE.Color(), new THREE.Color(), new THREE.Color(), new THREE.Color()] };
   private treeCol = { value: new THREE.Color("#2f5d2a") };
   private locked = false; // the map fixes the camera (no turning, no tilting)
   private horizonH = 0.4; // where the horizon sits, as a fraction of the screen height from the bottom
@@ -457,7 +475,6 @@ export class World {
     this.plain.visible = false;
     this.scene.add(this.plain);
     this.makeGrass();
-    this.makeTrees();
     this.makePrints();
 
     const RS = 720, RR = 90;
@@ -500,10 +517,10 @@ export class World {
     g.instanceCount = N;
     const mat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
-      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE }, uPath: this.gu.uPath },
+      uniforms: { uOffset: this.gu.uOffset, uTime: this.gu.uTime, uCol: this.gu.uBase, uLight: this.gu.uLight, uWind: { value: 1 }, uTile: { value: TILE }, uPath: this.gu.uPath, uFlowers: this.flowerAmt, uFlN: this.flowerN, uFl: this.flowerCols },
       vertexShader: /* glsl */ `
         attribute vec2 aOff; attribute vec3 aRand;
-        uniform vec2 uOffset; uniform float uTime, uWind, uTile, uPath;
+        uniform vec2 uOffset; uniform float uTime, uWind, uTile, uPath, uFlowers, uFlN; uniform vec3 uFl[4];
         varying float vT; varying float vTone; varying float vDist; varying vec3 vSp; varying vec3 vFc; varying float vPatch;
         void main(){
           // Each blade repeats every uTile meters; this picks the copy nearest to the avatar, which stands at the origin.
@@ -512,10 +529,10 @@ export class World {
           float t = position.y;
           // Three kinds of plant: fine grass (70%), broad leaves (23%) and a few tall reeds (7%).
           float sp = fract(aRand.x * 43.7 + aRand.z * 17.3);
-          float broad = step(0.7, sp) * step(sp, 0.93), reed = step(0.93, sp) * step(sp, 0.965), flower = step(0.965, sp);
+          float broad = step(0.7, sp) * step(sp, 0.93), reed = step(0.93, sp) * step(sp, 0.965), flower = (1.0 - step(0.93, sp) * step(sp, 0.965)) * step(fract(aRand.z * 57.3 + aRand.y * 29.1), 0.035 * uFlowers);
           vSp = vec3(broad, reed, flower);
           float hue = fract(aRand.y * 97.3);   // wildflower colour: white, yellow, pink, violet, orange, blue
-          vFc = hue < 0.17 ? vec3(1.0, 0.98, 0.92) : hue < 0.34 ? vec3(1.0, 0.8, 0.08) : hue < 0.51 ? vec3(1.0, 0.38, 0.6) : hue < 0.68 ? vec3(0.6, 0.32, 0.95) : hue < 0.85 ? vec3(1.0, 0.45, 0.08) : vec3(0.3, 0.48, 1.0);
+          vFc = uFlN > 0.5 ? uFl[int(floor(hue * uFlN))] : hue < 0.17 ? vec3(1.0, 0.98, 0.92) : hue < 0.34 ? vec3(1.0, 0.8, 0.08) : hue < 0.51 ? vec3(1.0, 0.38, 0.6) : hue < 0.68 ? vec3(0.6, 0.32, 0.95) : hue < 0.85 ? vec3(1.0, 0.45, 0.08) : vec3(0.3, 0.48, 1.0);
           float height = (0.22 + 0.5 * aRand.x * aRand.x + 0.1 * aRand.y) * mix(1.0, 0.85, broad) * mix(1.0, 2.0, reed) * mix(1.0, 0.8, flower);
           vPatch = 0.5 + 0.5 * sin(pat.x * 0.11 + 1.3) * sin(pat.y * 0.09 + 0.4) + 0.25 * sin(pat.x * 0.043 - pat.y * 0.05);
           float ang = aRand.z * 6.2831853;
@@ -564,37 +581,55 @@ export class World {
     this.scene.add(this.grass);
   }
 
-  // Conifers scattered over a wide tile that repeats around the walker, leaving the path clear. Each tree has a tapering
-  // trunk and five drooping tiers; the needles are a noise pattern, the undersides of the tiers are in shadow.
-  private makeTrees() {
-    const N = 1300, TILE = 160, TIERS = 5;
-    const piece = (g: THREE.BufferGeometry, part: number, shade: number[] | null, tier: number) => {
+  // Trees scattered over a wide tile that repeats around the walker, leaving the path clear. Four kinds: fir (five
+  // drooping tiers), spruce (tall and narrow), birch (white trunk with dark marks, light crown) and broadleaf (round crown).
+  // Needles and leaves are a noise pattern and the undersides of the tiers or clumps are in shadow.
+  private makeTreeSet(type: "fir" | "spruce" | "birch" | "broadleaf") {
+    const cfg = { fir: { n: 1300, h0: 4.5, hr: 6, wide: 1 }, spruce: { n: 1300, h0: 8, hr: 12, wide: 0.7 }, birch: { n: 1000, h0: 9, hr: 6, wide: 1 }, broadleaf: { n: 900, h0: 5, hr: 4, wide: 1 } }[type];
+    const TILE = 160;
+    const piece = (g: THREE.BufferGeometry, part: number, tier: (y: number) => number, shade: (y: number) => number) => {
       const flat = g.index ? g.toNonIndexed() : g;
-      const n = flat.attributes.position.count;
+      const n = flat.attributes.position.count, tiers = new Float32Array(n), shades = new Float32Array(n);
+      for (let v = 0; v < n; v++) { const y = flat.attributes.position.getY(v); tiers[v] = tier(y); shades[v] = shade(y); }
       flat.setAttribute("aPart", new THREE.BufferAttribute(new Float32Array(n).fill(part), 1));
-      flat.setAttribute("aTier", new THREE.BufferAttribute(new Float32Array(n).fill(tier), 1));
-      flat.setAttribute("aShade", new THREE.BufferAttribute(new Float32Array(shade ?? new Array(n).fill(1)), 1));
+      flat.setAttribute("aTier", new THREE.BufferAttribute(tiers, 1));
+      flat.setAttribute("aShade", new THREE.BufferAttribute(shades, 1));
       return flat;
     };
     const parts: THREE.BufferGeometry[] = [];
-    const trunk = new THREE.CylinderGeometry(0.03, 0.06, 0.55, 7); trunk.translate(0, 0.27, 0);
-    parts.push(piece(trunk, 0, null, 0));
-    for (let i = 0; i < TIERS; i++) {
-      const r = 0.52 * (1 - i * 0.16), h = 0.46 - i * 0.03, base = 0.16 + i * 0.17;
-      const cone = new THREE.ConeGeometry(r, h, 9, 1, false);
-      cone.rotateY(i * 0.7); // so the tiers do not line up
-      cone.translate(0, base + h / 2, 0);
-      const pos = cone.attributes.position;
-      const shade: number[] = [];
-      const ni = cone.index ? cone.toNonIndexed() : cone;
-      for (let v = 0; v < ni.attributes.position.count; v++) shade.push(Math.min(1, Math.max(0, (ni.attributes.position.getY(v) - base) / h))); // 0 at the rim, 1 at the tip
-      void pos;
-      parts.push(piece(ni, 1, shade, (i + 0.5) / TIERS));
+    const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+    const blobs = (list: [number, number, number, number][]) => {
+      for (const [x, y, z, r] of list) {
+        const blob = new THREE.IcosahedronGeometry(r, 0); blob.translate(x, y, z);
+        parts.push(piece(blob, 1, (yy) => clamp01(yy), (yy) => clamp01((yy - (y - r)) / (2 * r))));
+      }
+    };
+    if (type === "fir" || type === "spruce") {
+      const tiers = type === "fir" ? 5 : 9;
+      const trunk = new THREE.CylinderGeometry(0.03, 0.06, 0.55, 7); trunk.translate(0, 0.27, 0);
+      parts.push(piece(trunk, 0, () => 0, () => 1));
+      for (let i = 0; i < tiers; i++) {
+        const k = i / (tiers - 1);
+        const r = (type === "fir" ? 0.52 : 0.34) * (1 - k * 0.8), h = type === "fir" ? 0.46 - i * 0.03 : 0.2, base = type === "fir" ? 0.16 + i * 0.17 : 0.08 + i * 0.1;
+        const cone = new THREE.ConeGeometry(r, h, type === "fir" ? 9 : 7, 1, false);
+        cone.rotateY(i * 0.7);
+        cone.translate(0, base + h / 2, 0);
+        parts.push(piece(cone, 1, () => (i + 0.5) / tiers, (y) => clamp01((y - base) / h))); // shade 0 at the rim, 1 at the tip
+      }
+    } else if (type === "birch") {
+      const trunk = new THREE.CylinderGeometry(0.014, 0.03, 0.78, 6); trunk.translate(0, 0.39, 0);
+      parts.push(piece(trunk, 0, () => 0, () => 1));
+      blobs([[0, 0.82, 0, 0.13], [0.12, 0.7, 0.04, 0.11], [-0.11, 0.72, -0.05, 0.11], [0.03, 0.92, 0.08, 0.1], [-0.06, 0.6, 0.09, 0.1], [0.08, 0.56, -0.07, 0.09], [-0.03, 0.78, -0.1, 0.1]]);
+    } else {
+      const trunk = new THREE.CylinderGeometry(0.035, 0.06, 0.4, 6); trunk.translate(0, 0.2, 0);
+      parts.push(piece(trunk, 0, () => 0, () => 1));
+      blobs([[0, 0.62, 0, 0.28], [0.2, 0.5, 0.05, 0.2], [-0.2, 0.52, -0.05, 0.21], [0.05, 0.8, 0.08, 0.2], [-0.05, 0.45, 0.16, 0.18]]);
     }
     const merged = mergeGeometries(parts, false)!;
     const g = new THREE.InstancedBufferGeometry();
     g.index = null;
     for (const k of ["position", "normal", "aPart", "aTier", "aShade"]) g.setAttribute(k, merged.getAttribute(k));
+    const N = cfg.n;
     const off = new Float32Array(N * 2), rnd = new Float32Array(N * 3);
     for (let i = 0; i < off.length; i++) off[i] = Math.random() * TILE;
     for (let i = 0; i < rnd.length; i++) rnd[i] = Math.random();
@@ -602,52 +637,56 @@ export class World {
     g.setAttribute("aRand", new THREE.InstancedBufferAttribute(rnd, 3));
     g.instanceCount = N;
     const mat = new THREE.ShaderMaterial({
-      uniforms: { uOffset: this.gu.uOffset, uLight: this.gu.uLight, uHaze: this.gu.uHaze, uPath: this.gu.uPath, uTile: { value: TILE }, uDens: this.treeDens, uTreeCol: this.treeCol, uTime: this.gu.uTime },
+      uniforms: { uOffset: this.gu.uOffset, uLight: this.gu.uLight, uHaze: this.gu.uHaze, uPath: this.gu.uPath, uTile: { value: TILE }, uDens: this.treeDens, uTreeCol: this.treeCol, uTime: this.gu.uTime, uHeight: { value: new THREE.Vector2(cfg.h0, cfg.hr) }, uWide: { value: cfg.wide }, uBirch: { value: type === "birch" ? 1 : 0 } },
       vertexShader: /* glsl */ `
         attribute vec2 aOff; attribute vec3 aRand; attribute float aPart, aTier, aShade;
-        uniform vec2 uOffset; uniform float uTile, uPath, uDens, uTime;
+        uniform vec2 uOffset, uHeight; uniform float uTile, uPath, uDens, uTime, uWide;
         varying float vPart, vDist, vTier, vShade, vLight, vTint; varying vec3 vLocal;
         void main(){
           vec2 pat = aOff + uTile * floor((uOffset - aOff) / uTile + 0.5);
           vec2 sc = pat - uOffset;
           float dist = length(sc);
-          float size = 4.5 + 6.0 * aRand.x;                    // 4.5 - 10.5 m tall
-          float wide = 0.8 + 0.5 * fract(aRand.x * 7.3 + aRand.y * 3.1); // some trees slim, some broad
+          float size = uHeight.x + uHeight.y * aRand.x;
+          float wide = uWide * (0.8 + 0.5 * fract(aRand.x * 7.3 + aRand.y * 3.1)); // some trees slim, some broad
           // Not on the path, not too many (density), not beyond the view distance.
           float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.8 + 2.0 * aRand.y) + step(115.0, dist);
           vec3 p = position;
           p.xz *= wide;
-          // A very small sway in the wind that grows toward the top.
-          float sway = sin(uTime * 0.8 + aRand.y * 20.0) * 0.012 * p.y;
-          p.x += sway;
+          p.x += sin(uTime * 0.8 + aRand.y * 20.0) * 0.012 * p.y; // a very small sway that grows toward the top
           vec3 world = vec3(sc.x, 0.0, sc.y) + p * size * (gone > 0.0 ? 0.0 : 1.0);
           vLight = 0.4 + 0.6 * max(dot(normalize(normal), normalize(vec3(0.4, 0.8, 0.3))), 0.0);
           vPart = aPart; vDist = dist; vTier = aTier; vShade = aShade; vTint = aRand.y; vLocal = position;
           gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
         }`,
       fragmentShader: /* glsl */ `
-        uniform vec3 uTreeCol, uHaze; uniform float uLight;
+        uniform vec3 uTreeCol, uHaze; uniform float uLight, uBirch;
         varying float vPart, vDist, vTier, vShade, vLight, vTint; varying vec3 vLocal;
         ${GLSL_NOISE}
         void main(){
-          // Needle clusters: fine noise across the cone surface, with dark gaps between the clusters.
+          // Needle or leaf clusters: fine noise across the surface, with dark gaps between the clusters.
           float clump = fbm(vec2(vLocal.x * 26.0 + vLocal.z * 19.0, vLocal.y * 38.0 + vTint * 9.0));
-          float tiers = 0.45 + 0.55 * smoothstep(0.0, 0.55, vShade);       // the underside of every tier is in shadow
+          float tiers = 0.45 + 0.55 * smoothstep(0.0, 0.55, vShade);       // the underside of every tier or clump is in shadow
           float height = 0.7 + 0.5 * vTier;                                 // the crown is lighter than the skirt
           vec3 foliage = uTreeCol * (0.75 + 0.5 * vTint) * mix(0.5, 1.25, clump) * tiers * height;
           foliage = mix(foliage, foliage * vec3(1.25, 1.2, 0.8), smoothstep(0.75, 1.0, vShade) * 0.5); // sunlit tips
           vec3 bark = vec3(0.24, 0.16, 0.1) * (0.7 + 0.5 * fbm(vec2(vLocal.x * 80.0, vLocal.y * 14.0)));
+          if (uBirch > 0.5) {
+            // White birch bark with dark horizontal scars.
+            float scar = smoothstep(0.62, 0.8, noise(vec2(vLocal.y * 55.0, vLocal.x * 30.0 + vTint * 5.0)) * 0.7 + noise(vec2(vLocal.y * 160.0, vLocal.z * 40.0)) * 0.5);
+            bark = mix(vec3(0.92, 0.9, 0.84), vec3(0.08, 0.07, 0.06), scar);
+          }
           vec3 col = mix(bark, foliage, vPart) * vLight * uLight * 1.7;
-          col = mix(col, uHaze, smoothstep(30.0, 110.0, vDist) * 0.88);  // distance haze
+          col = mix(col, uHaze, smoothstep(45.0, 115.0, vDist) * 0.65);  // distance haze
           gl_FragColor = vec4(col, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
     });
-    this.trees = new THREE.Mesh(g, mat);
-    this.trees.frustumCulled = false;
-    this.trees.visible = false;
-    this.scene.add(this.trees);
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    this.scene.add(mesh);
+    return mesh;
   }
 
   // Concave snow impressions with a shaded bowl and a softly raised rim.
@@ -793,11 +832,18 @@ export class World {
     this.prints = [];
     this.grassWind.value = 0.35 + m.ambience.wind * 0.9;
     this.gu.uSea.value = kind === 3 ? (m.ground.sea ?? 0) : 0;
+    this.flowerAmt.value = m.ground.flowers ?? 1;
+    const fc = (m.ground.flowerColors ?? []).slice(0, 4);
+    this.flowerN.value = fc.length;
+    fc.forEach((c, i) => this.flowerCols.value[i].set(c));
+    this.gu.uRoad.value = m.ground.pathStyle === "road" ? 1 : 0;
     this.gu.uPath.value = (m.ground.path ?? 0) * 3.5; // half-width in meters: up to 3.5 m
     this.gu.uPathCol.value.set(m.ground.pathColor ?? "#7a6040");
     this.treeDens.value = m.scenery?.trees ?? 0;
     this.treeCol.value.set(m.scenery?.treeColor ?? "#2f5d2a");
-    this.trees.visible = this.treeDens.value > 0;
+    const treeKind = m.scenery?.treeType ?? "fir";
+    if (this.treeDens.value > 0) this.treeSets[treeKind] ??= this.makeTreeSet(treeKind);
+    for (const [k, mesh] of Object.entries(this.treeSets)) mesh!.visible = k === treeKind && this.treeDens.value > 0;
     this.locked = m.view?.locked === true;
     if (this.locked) this.pos.x = 0; // a fixed view walks straight ahead: start in the middle of the path
     this.horizonH = m.horizon.height ?? 0.4;
@@ -862,6 +908,7 @@ export class World {
       for (let o = 0; o < 6; o++) { const r = 1 - Math.abs(2 * vn(x * f, z * f) - 1); s += a * r * r; a *= 0.5; f *= 2.1; }
       return s / 0.97;
     };
+    let top = 1;
     for (let j = 0; j <= RR; j++) {
       const s = j / RR, r = R0 * Math.pow(R1 / R0, s);
       for (let i = 0; i <= RS; i++) {
@@ -872,11 +919,13 @@ export class World {
           ? Math.max(0.25, 0.3 + 1.25 * Math.exp(-((front / 0.26) ** 2)) + 0.35 * (Math.exp(-(((front + 0.6) / 0.25) ** 2)) + Math.exp(-(((front - 0.6) / 0.25) ** 2))))
           : Math.max(0.2, 0.3 + 0.85 * Math.exp(-(((front + 0.3) / 0.2) ** 2)) + 0.9 * Math.exp(-(((front - 0.32) / 0.2) ** 2)) - 0.2 * Math.exp(-((front / 0.1) ** 2)));
         const mask = Math.min(1, Math.max(0, (r - R0) / (R0 * 0.8)));
-        const h = env * r * (meadow ? 0.11 + 0.15 * s : 0.14 + 0.2 * s) * Math.pow(ridged(x, z), meadow ? 0.95 : 1.4) * mask * 1.5;
+        const h = env * r * (meadow ? 0.11 + 0.15 * s : 0.14 + 0.2 * s) * Math.pow(ridged(x, z), meadow ? 0.95 : 1.4) * mask * 1.5 * (ahead ? 1.7 : 1); // a peak straight ahead is made much taller
         pos.setXYZ(j * (RS + 1) + i, x, h - 2 * (1 - mask), z);
+        if (h > top) top = h;
       }
     }
     pos.needsUpdate = true;
+    (this.range.material as THREE.ShaderMaterial).uniforms.uTop.value = top; // object space, like vP.y
     this.range.geometry.computeVertexNormals();
   }
 
@@ -1036,6 +1085,7 @@ export class World {
     const kindName = this.map?.ground.kind ?? "salt", salt = kindName === "salt";
     ru.uDeep.value = salt ? 1 : 0;
     ru.uTrees.value = this.map?.horizon.trees ?? 0;
+    ru.uFogK.value = this.map?.horizon.layout === "ahead" ? 0.0004 : 0.0011; // a mountain straight ahead stays clear and colorful
     ru.uMeadow.value = kindName === "snow" ? 0 : 1;
     // Slope colors come from the map's horizon color: dark slopes in front, a lighter tone of it on the upper ridges.
     const hc = new THREE.Color(this.map?.horizon.color ?? "#8a9bb5");

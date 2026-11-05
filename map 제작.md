@@ -30,6 +30,9 @@
 | `ground.reflect` | 0~1 | 0.85 | **salt만**: 거울 반사 세기 (높을수록 하늘이 선명하게 비친다) |
 | `ground.cracks` | 0~1 | 0.4 | **salt만**: 소금 땅의 갈라진 육각형 무늬 |
 | `ground.sea` | 0~1 | 0 | **sand만**: 걷는 방향의 **오른쪽에 바다**가 생긴다 (0 = 없음, 0.5 = 멀리 보이는 바다, 0.9 = 해안선이 바로 옆). 해안선에는 물결과 거품이 일고 왼쪽은 모래사장이다. 폰 화면은 좁아서 0.8 이상이어야 바다가 크게 보인다 |
+| `ground.pathStyle` | `dirt` / `road` | `dirt` | 길의 종류. `road`는 아스팔트 도로(양쪽 흰 선, 가운데 노란 겹선)이다. 도로는 `ground.path` 1, `pathColor` `#3a3c40` 정도로 한다 |
+| `ground.flowers` | 0~4 | 1 | **grass만**: 들꽃의 양 (0 = 없음, 1 = 보통, 3 = 꽃밭) |
+| `ground.flowerColors` | `#rrggbb` 목록 (최대 4개) | 여섯 색 섞임 | **grass만**: 들꽃 색. 예: 민들레 노랑과 분홍 `["#ffd21a", "#c25bd6"]` |
 | `ground.path` | 0~1 | 0 | **grass, snow, sand 모두 가능**(흙길은 grass에 `pathColor` 갈색): 앞으로 곧게 난 길의 폭 (0 = 길 없음, 0.5 = 보통 오솔길, 1 = 넓은 길). 길은 화면 가운데에서 앞으로 뻗는다 |
 | `ground.pathColor` | `#rrggbb` | `#7a6040` | 길의 색 (흙길 갈색, 눈길은 `#cfd8e6`, 모랫길은 땅보다 짙은 모래색) |
 | `sky.clouds` | 0~1 | 0.5 | 구름 양 (0 = 구름 없음, 1 = 가득) |
@@ -45,6 +48,7 @@
 | `horizon.snow` | 0~1 | 0 | **snow만**: 산의 눈 덮임 정도 |
 | `horizon.trees` | 0~1 | 0 | **snow만**: 산자락의 침엽수 숲 |
 | `scenery.trees` | 0~1 | 0 | 길 양옆에 서 있는 나무의 양 (0 = 없음, 0.5 = 듬성듬성, 1 = 빽빽한 숲). 길을 따라 걸으면 계속 나타난다. 땅이 소금 호수이면 쓰지 않는다 |
+| `scenery.treeType` | `fir` / `spruce` / `birch` / `broadleaf` | `fir` | 나무 종류. `fir` 전나무(층층), `spruce` 키 큰 가문비, `birch` 하얀 줄기의 자작나무(잎 `#9bd04a` 연두), `broadleaf` 둥근 활엽수(잎 `#3f7a3a`) |
 | `scenery.treeColor` | `#rrggbb` | `#2f5d2a` | 나무 잎 색 (전나무 초록 `#2f6b34`, 가을 단풍 `#b5651d`) |
 | `view.locked` | `true` / `false` | `false` | `true`이면 **화면이 고정**된다. 마우스나 손가락으로 돌리거나 위아래로 움직일 수 없고, 항상 앞을 보며 곧게 걷는다. 길 양옆에 나무가 있는 맵처럼 한 방향 풍경에 쓴다 |
 | `ambience.wind` | 0~1 | 0.4 | 바람 소리와 구름·풀의 움직임 (약함 0.2 / 보통 0.4 / 강함 0.8) |
@@ -84,6 +88,7 @@
 | 모래 사막 (맑고 고요한 날) | `sand`, `ground.color` `#c47a45`, `haze` 0.1, `wind` 0.15, `birds` 0.05, `mountains` 0.35 |
 | 숲길 (고정 화면) | `grass`, `ground.path` 0.5, `scenery.trees` 0.8, `view.locked` true, `horizon.height` 0.45, `horizon.mountains` 0.9, `horizon.layout` ahead |
 | 바닷가 (오른쪽 바다, 왼쪽 모래) | `sand`, `ground.color` `#e6cf9f`, `ground.sea` 0.9, `view.locked` true, `horizon.height` 0.5, `horizon.mountains` 0.12 |
+| 자작나무 꽃밭 | `grass`, `ground.flowers` 3, `ground.flowerColors` 노랑·분홍, `scenery.treeType` birch, `scenery.trees` 0.45, `scenery.treeColor` `#9bd04a` |
 | 푸른 여름 초원 | `grass`, `ground.color` `#62b02a`, `horizon.color` `#4f9aa0`, `wind` 0.75 |
 | 가을 초원 | `grass`, `ground.color` `#c98a22`, `horizon.color` `#9a5a3c`, `haze` 0.3 |
 | 안개 낀 설원 | `snow`, `haze` 0.35, `clouds` 0.7, `horizon.snow` 0.9 |
@@ -355,6 +360,44 @@
     "wind": 0.5,
     "birds": 0.6,
     "insects": 0.1
+  }
+}
+```
+
+### Birch Meadow — 자작나무 숲과 들꽃 초원
+
+```json
+{
+  "schema": "voyager.map/1",
+  "name": "Birch Meadow",
+  "ground": {
+    "kind": "grass",
+    "color": "#6db22f",
+    "flowers": 3,
+    "flowerColors": [
+      "#ffd21a",
+      "#ffe45c",
+      "#c25bd6"
+    ]
+  },
+  "sky": {
+    "clouds": 0.35,
+    "haze": 0.12,
+    "blue": 0.8
+  },
+  "horizon": {
+    "mountains": 0,
+    "height": 0.45
+  },
+  "scenery": {
+    "trees": 0.45,
+    "treeColor": "#9bd04a",
+    "treeType": "birch"
+  },
+  "ambience": {
+    "wind": 0.35,
+    "birds": 0.7,
+    "insects": 0.4
   }
 }
 ```

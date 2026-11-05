@@ -1,0 +1,33 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Birch Meadow",
+  "ground": {
+    "kind": "grass",
+    "color": "#6db22f",
+    "flowers": 3,
+    "flowerColors": [
+      "#ffd21a",
+      "#ffe45c",
+      "#c25bd6"
+    ]
+  },
+  "sky": {
+    "clouds": 0.35,
+    "haze": 0.12,
+    "blue": 0.8
+  },
+  "horizon": {
+    "mountains": 0,
+    "height": 0.45
+  },
+  "scenery": {
+    "trees": 0.45,
+    "treeColor": "#9bd04a",
+    "treeType": "birch"
+  },
+  "ambience": {
+    "wind": 0.35,
+    "birds": 0.7,
+    "insects": 0.4
+  }
+}

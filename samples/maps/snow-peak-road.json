@@ -1,0 +1,36 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Snow Peak Road",
+  "ground": {
+    "kind": "grass",
+    "color": "#6aa63a",
+    "path": 1,
+    "pathColor": "#4a4d52",
+    "pathStyle": "road"
+  },
+  "sky": {
+    "clouds": 0.35,
+    "haze": 0.1,
+    "blue": 0.95
+  },
+  "horizon": {
+    "mountains": 1,
+    "color": "#2f6a8a",
+    "snow": 0.9,
+    "height": 0.42,
+    "layout": "ahead"
+  },
+  "scenery": {
+    "trees": 1,
+    "treeColor": "#245f34",
+    "treeType": "spruce"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.4,
+    "insects": 0.2
+  }
+}
