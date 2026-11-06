@@ -26,3 +26,6 @@ android/local.properties
 android/capacitor-cordova-android-plugins/
 android/app/src/main/assets/public/
 *.apk
+
+# generated drafts and store material
+store/gen/

@@ -44,11 +44,14 @@
 | `horizon.mountains` | 0~1 | 0.5 | 산 높이 (0 = 산 없음, 평평한 지평선). 낮은 언덕 0.3 / 보통 0.5 / 웅장한 산 0.8 |
 | `horizon.height` | 0.1~0.9 | 0.4 | **지평선의 높이**: 화면 아래쪽에서부터 화면 높이의 몇 %에 지평선이 오는가. 0.4 = 아래에서 40% 지점(기본), 0.7 = 70% 지점(땅이 넓게 보임), 0.2 = 20% 지점(하늘이 넓게 보임) |
 | `horizon.layout` | `valley` / `ahead` | `valley` | 산의 배치. `valley`는 양옆이 높고 가운데가 낮은 골짜기(기본), `ahead`는 **정면에 큰 산**이 서고 양옆이 낮다. 고정 화면(`view.locked`) 맵에서 길 끝의 산으로 쓴다 |
+| `horizon.fog` | 0 ~ 1 | 0.3 | `horizon.photo` 산의 아랫부분에 끼는 안개의 진하기(0.2 옅게 / 0.4 진하게). 산 바닥이 잘린 듯 보이지 않도록 가장 낮은 부분은 항상 안개로 덮인다. 가까운 산이 어두우면 0.5 정도로 올린다 |
+| `horizon.photo` | `forest` / `snow` / `rock` / `blue` / `green` | (없음) | **산을 실제 사진으로** 그린다. 먼 산, 중간 산, 가까운 산이 겹쳐 보이고 먼 산일수록 옅다. `forest` 숲 덮인 산, `snow` 눈 덮인 날카로운 높은 산(높이 차이가 큼), `rock` 메마른 안데스식 바위산과 화산, `blue` 안개 낀 푸른 능선이 먼 곳은 옅은 하늘색에서 가까운 곳은 짙은 남색으로 겹치는 산(소금사막에 어울림), `green` 히말라야처럼 높고 가파르지만 눈 대신 나무로 덮인 산(초원에 어울림). 이 값을 쓰면 `layout`, `color`, `snow`, `trees`는 쓰이지 않고 `mountains`만 산의 크기(0.3 낮게 / 0.7 크게)를 정한다 |
 | `horizon.color` | `#rrggbb` | `#8a9bb5` | **salt, grass, sand만** (`mountains`가 0이면 쓰이지 않으니 생략): 산의 색. 앞쪽 산은 이 색을 어둡게, 먼 산은 안개에 섞여 옅어진다 |
 | `horizon.snow` | 0~1 | 0 | **snow만**: 산의 눈 덮임 정도 |
 | `horizon.trees` | 0~1 | 0 | **snow만**: 산자락의 침엽수 숲 |
 | `scenery.trees` | 0~1 | 0 | 길 양옆에 서 있는 나무의 양 (0 = 없음, 0.5 = 듬성듬성, 1 = 빽빽한 숲). 길을 따라 걸으면 계속 나타난다. 땅이 소금 호수이면 쓰지 않는다 |
-| `scenery.treeType` | `fir` / `spruce` / `birch` / `broadleaf` | `fir` | 나무 종류. `fir` 전나무(층층), `spruce` 키 큰 가문비, `birch` 하얀 줄기의 자작나무(잎 `#9bd04a` 연두), `broadleaf` 둥근 활엽수(잎 `#3f7a3a`) |
+| `scenery.treeType` | `fir` / `spruce` / `birch` / `broadleaf` / `photo` | `fir` | 나무 종류. `fir` 전나무(층층), `spruce` 키 큰 가문비, `birch` 하얀 줄기의 자작나무(잎 `#9bd04a` 연두), `broadleaf` 둥근 활엽수(잎 `#3f7a3a`), `photo` **실제 사진 나무**(항상 카메라를 향한 판자. `treeColor`는 쓰이지 않는다) |
+| `scenery.photoTrees` | 목록: `birch` `spruce` `oak` `pine` | 전부 | `treeType`이 `photo`일 때 쓸 나무 종류. 예: `["birch"]`는 자작나무 숲, `["spruce", "pine"]`은 침엽수 숲. 생략하면 네 종류가 섞인다 |
 | `scenery.treeColor` | `#rrggbb` | `#2f5d2a` | 나무 잎 색 (전나무 초록 `#2f6b34`, 가을 단풍 `#b5651d`) |
 | `view.locked` | `true` / `false` | `false` | `true`이면 **화면이 고정**된다. 마우스나 손가락으로 돌리거나 위아래로 움직일 수 없고, 항상 앞을 보며 곧게 걷는다. 길 양옆에 나무가 있는 맵처럼 한 방향 풍경에 쓴다 |
 | `ambience.wind` | 0~1 | 0.4 | 바람 소리와 구름·풀의 움직임 (약함 0.2 / 보통 0.4 / 강함 0.8) |
@@ -86,6 +89,7 @@
 | 보랏빛 호수 | `salt`, `ground.color` `#f1e6ee`, `reflect` 0.95, `haze` 0.35, `horizon.color` `#5a46b8` |
 | 모래 사막 (먼지 낀 날) | `sand`, `ground.color` `#d9a95f`, `horizon.color` `#9a5a3c`, `haze` 0.35, `clouds` 0.15 |
 | 모래 사막 (맑고 고요한 날) | `sand`, `ground.color` `#c47a45`, `haze` 0.1, `wind` 0.15, `birds` 0.05, `mountains` 0.35 |
+| 사진 숲길 (고정 화면) | `grass`, `ground.path` 0.5, `scenery.trees` 0.8, `scenery.treeType` photo, `horizon.photo` forest, `horizon.mountains` 0.7, `view.locked` true, `horizon.height` 0.45 |
 | 숲길 (고정 화면) | `grass`, `ground.path` 0.5, `scenery.trees` 0.8, `view.locked` true, `horizon.height` 0.45, `horizon.mountains` 0.9, `horizon.layout` ahead |
 | 바닷가 (오른쪽 바다, 왼쪽 모래) | `sand`, `ground.color` `#e6cf9f`, `ground.sea` 0.9, `view.locked` true, `horizon.height` 0.5, `horizon.mountains` 0.12 |
 | 자작나무 꽃밭 | `grass`, `ground.flowers` 3, `ground.flowerColors` 노랑·분홍, `scenery.treeType` birch, `scenery.trees` 0.45, `scenery.treeColor` `#9bd04a` |
@@ -322,6 +326,48 @@
   "scenery": {
     "trees": 0.8,
     "treeColor": "#2f6b34"
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.4
+  }
+}
+```
+
+### Forest Photo — 사진 나무와 겹친 산이 있는 숲길 (고정 화면)
+
+`scenery.treeType`을 `photo`로, `horizon.photo`를 `forest`로 한 예. 나무는 실제 사진이라 걸을 때 커지면서 지나가고, 산은 먼 산·중간 산·가까운 산이 겹쳐 보인다.
+
+```json
+{
+  "schema": "voyager.map/1",
+  "name": "Forest Photo",
+  "ground": {
+    "kind": "grass",
+    "color": "#4f8a2a",
+    "path": 0.5,
+    "pathColor": "#8f8a80",
+    "pathStyle": "gravel"
+  },
+  "sky": {
+    "clouds": 0.55,
+    "haze": 0.05,
+    "blue": 1
+  },
+  "horizon": {
+    "mountains": 0.7,
+    "color": "#4f7f8a",
+    "height": 0.45,
+    "photo": "forest"
+  },
+  "scenery": {
+    "trees": 0.8,
+    "treeType": "photo",
+    "photoTrees": ["birch", "spruce", "oak", "pine"]
   },
   "view": {
     "locked": true

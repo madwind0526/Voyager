@@ -17,9 +17,11 @@
     "blue": 0.7
   },
   "horizon": {
-    "mountains": 0.75,
+    "mountains": 0.4,
     "color": "#4f9aa0",
-    "snow": 0
+    "snow": 0,
+    "photo": "green",
+    "fog": 0.3
   },
   "ambience": {
     "wind": 0.75,

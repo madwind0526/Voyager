@@ -19,10 +19,12 @@
     "nightPhotos": "aurora"
   },
   "horizon": {
-    "mountains": 0.8,
+    "mountains": 0.85,
     "color": "#8fa3bd",
     "snow": 0.9,
-    "trees": 1
+    "trees": 1,
+    "photo": "snow",
+    "fog": 0.3
   },
   "ambience": {
     "wind": 0.55,

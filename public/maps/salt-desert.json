@@ -4,8 +4,26 @@
   "name": "Salt Desert",
   "author": "Voyager",
   "thumb": "/maps/salt-desert.jpg",
-  "ground": { "color": "#e8f0f4", "reflect": 0.88, "cracks": 0.35 },
-  "sky": { "clouds": 0.8, "stars": 1, "haze": 0.1, "blue": 0.65 },
-  "horizon": { "mountains": 0.55, "color": "#2b58c8" },
-  "ambience": { "wind": 0.4, "birds": 0.35, "insects": 0.4 }
+  "ground": {
+    "color": "#e8f0f4",
+    "reflect": 0.88,
+    "cracks": 0.35
+  },
+  "sky": {
+    "clouds": 0.8,
+    "stars": 1,
+    "haze": 0.1,
+    "blue": 0.65
+  },
+  "horizon": {
+    "mountains": 0.75,
+    "color": "#2b58c8",
+    "photo": "blue",
+    "fog": 0.5
+  },
+  "ambience": {
+    "wind": 0.4,
+    "birds": 0.35,
+    "insects": 0.4
+  }
 }

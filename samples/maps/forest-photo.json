@@ -1,0 +1,35 @@
+{
+  "schema": "voyager.map/1",
+  "name": "Forest Photo",
+  "ground": {
+    "kind": "grass",
+    "color": "#4f8a2a",
+    "path": 0.5,
+    "pathColor": "#8f8a80",
+    "pathStyle": "gravel"
+  },
+  "sky": {
+    "clouds": 0.55,
+    "haze": 0.05,
+    "blue": 1
+  },
+  "horizon": {
+    "mountains": 0.35,
+    "color": "#4f7f8a",
+    "height": 0.45,
+    "photo": "forest"
+  },
+  "scenery": {
+    "trees": 0.8,
+    "treeType": "photo",
+    "photoTrees": ["birch", "spruce", "oak", "pine"]
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.3,
+    "birds": 0.6,
+    "insects": 0.4
+  }
+}

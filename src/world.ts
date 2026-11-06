@@ -178,13 +178,13 @@ const dayMat = new THREE.ShaderMaterial({
 // Haze that seeps into the sky above the horizon, so the line between sky and land dissolves.
 const hazeMat = new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, transparent: true,
-  uniforms: { uHaze: { value: new THREE.Color() } },
+  uniforms: { uHaze: { value: new THREE.Color() }, uAmt: { value: 1 } },
   vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: /* glsl */ `
-    uniform vec3 uHaze; varying vec3 vDir;
+    uniform vec3 uHaze; uniform float uAmt; varying vec3 vDir;
     void main(){
       float y = max(normalize(vDir).y, 0.0);
-      gl_FragColor = vec4(uHaze, 0.8 * exp(-y * 7.0));
+      gl_FragColor = vec4(uHaze, 0.8 * uAmt * exp(-y * 7.0));
     }`,
 });
 
@@ -709,6 +709,161 @@ export class World {
     return mesh;
   }
 
+  // Photographic trees: flat cut-outs that always face the camera, scattered like the 3D trees (same tile, same path clearance).
+  // They grow and slide past as the world scrolls. Each picture is one mesh; the pictures come from public/trees.
+  private photoTrees: THREE.Mesh[] = [];
+  private photoTreeInfo: { species: string; mesh: THREE.Mesh; dens: { value: number } }[] = [];
+  private static PHOTO_TREE_FILES: Record<string, { files: string[]; h0: number; hr: number }> = {
+    birch: { files: ["birch-1", "birch-2"], h0: 9, hr: 6 },
+    spruce: { files: ["spruce-1", "spruce-2"], h0: 11, hr: 9 },
+    oak: { files: ["oak-1", "oak-2"], h0: 8, hr: 5 },
+    pine: { files: ["pine-1"], h0: 12, hr: 8 },
+  };
+  private makePhotoTrees() {
+    const TILE = 160, PER = 150;
+    const quad = new THREE.PlaneGeometry(1, 1);
+    quad.translate(0, 0.5, 0); // the trunk base sits on the ground
+    for (const [species, cfg] of Object.entries(World.PHOTO_TREE_FILES)) {
+      for (const file of cfg.files) {
+        const g = new THREE.InstancedBufferGeometry();
+        g.index = quad.index;
+        for (const k of ["position", "uv"]) g.setAttribute(k, quad.getAttribute(k));
+        const off = new Float32Array(PER * 2), rnd = new Float32Array(PER * 3);
+        for (let i = 0; i < off.length; i++) off[i] = Math.random() * TILE;
+        for (let i = 0; i < rnd.length; i++) rnd[i] = Math.random();
+        g.setAttribute("aOff", new THREE.InstancedBufferAttribute(off, 2));
+        g.setAttribute("aRand", new THREE.InstancedBufferAttribute(rnd, 3));
+        g.instanceCount = PER;
+        const dens = { value: 0 };
+        const mat = new THREE.ShaderMaterial({
+          uniforms: { uOffset: this.gu.uOffset, uLight: this.gu.uLight, uHaze: this.gu.uHaze, uPath: this.gu.uPath, uTile: { value: TILE }, uDens: dens, uTex: { value: null as THREE.Texture | null }, uAspect: { value: 0.6 }, uHeight: { value: new THREE.Vector2(cfg.h0, cfg.hr) } },
+          vertexShader: /* glsl */ `
+            attribute vec2 aOff; attribute vec3 aRand;
+            uniform vec2 uOffset, uHeight; uniform float uTile, uPath, uDens, uAspect;
+            varying vec2 vUv; varying float vDist, vTint, vFade;
+            void main(){
+              vec2 pat = aOff + uTile * floor((uOffset - aOff) / uTile + 0.5);
+              vec2 sc = pat - uOffset;
+              float dist = length(sc);
+              float h = uHeight.x + uHeight.y * aRand.x;
+              float w = h * uAspect;
+              // Not on the path (a wide crown keeps further away), not too many (density), not beyond the view distance.
+              float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.5 + 0.3 * w) + step(80.0, dist); // none beyond 80 m: every tree stands in front of the horizon mist
+              vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+              vec3 world = vec3(sc.x, 0.0, sc.y) + (right * position.x * w + vec3(0.0, position.y * h, 0.0)) * (gone > 0.0 ? 0.0 : 1.0);
+              vUv = vec2(aRand.y > 0.5 ? 1.0 - uv.x : uv.x, uv.y); // half of the trees are mirrored
+              vDist = dist; vTint = aRand.y; vFade = smoothstep(3.0, 9.0, dist); // a tree beside the camera fades out instead of cutting through the view
+              gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+            }`,
+          fragmentShader: /* glsl */ `
+            uniform sampler2D uTex; uniform vec3 uHaze; uniform float uLight;
+            varying vec2 vUv; varying float vDist, vTint, vFade;
+            void main(){
+              vec4 t = texture2D(uTex, vUv);
+              if (t.a * vFade < 0.45) discard;
+              vec3 col = t.rgb * (0.85 + 0.3 * vTint) * uLight * 1.5;
+              // Far trees only get darker, never whiter: the horizon mist stays behind them.
+              col *= 1.0 - 0.4 * smoothstep(30.0, 80.0, vDist);
+              gl_FragColor = vec4(col, 1.0);
+              #include <tonemapping_fragment>
+              #include <colorspace_fragment>
+            }`,
+        });
+        const mesh = new THREE.Mesh(g, mat);
+        mesh.frustumCulled = false;
+        mesh.visible = false;
+        this.scene.add(mesh);
+        this.photoTrees.push(mesh);
+        this.photoTreeInfo.push({ species, mesh, dens });
+        new THREE.TextureLoader().load(`/trees/${file}.webp`, (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          mat.uniforms.uTex.value = tex;
+          mat.uniforms.uAspect.value = tex.image.width / tex.image.height;
+        });
+      }
+    }
+  }
+  private showPhotoTrees(on: boolean, species: string[]) {
+    if (on && this.photoTrees.length === 0) this.makePhotoTrees();
+    const wanted = species.length ? species : Object.keys(World.PHOTO_TREE_FILES);
+    const active = this.photoTreeInfo.filter((t) => wanted.includes(t.species)).length || 1;
+    for (const t of this.photoTreeInfo) {
+      t.mesh.visible = on && wanted.includes(t.species);
+      t.dens.value = Math.min(1, this.treeDens.value * (this.photoTreeInfo.length / active)); // fewer species = more of each, so the forest keeps its fullness
+    }
+  }
+
+  // Layered mountain pictures: three cylinders around the view (far, middle, near), each a strip with transparent sky.
+  // The strip repeats mirrored so the seams never show. Far layers are lighter and hazier, so the ridges read as depth.
+  private photoRanges: Record<string, THREE.Group> = {};
+  private photoFog = { value: 0.3 }; // mist at the foot of the mountain pictures: strength of the body of the mist (0.2 light .. 0.4 thick); the lowest meters are always covered
+  private showPhotoRange(name: string, mountains: number) {
+    for (const [k, grp] of Object.entries(this.photoRanges)) grp.visible = k === name;
+    if (!name) return;
+    if (!this.photoRanges[name]) {
+      const grp = new THREE.Group();
+      const ru = (this.range.material as THREE.ShaderMaterial).uniforms;
+      // name, radius, extra haze, draw order, height factor (far peaks rise above the nearer ridges), sideways shift, brightness.
+      // Far layers are light and hazy, near layers dark and crisp: strong contrast between the layers.
+      // The "blue" set is drawn in layered tones already (pale far, cobalt middle, navy near), so it needs no extra haze.
+      const T = name === "blue" ? { far: [1.5, 0.15, 1], mid: [1.3, 0, 1], near: [1, 0, 1] } : name === "snow" ? { far: [1.3, 0.45, 1.1], mid: [1.15, 0.12, 1], near: [1, 0, 0.85] } : name === "green" ? { far: [1.25, 0.6, 1.15], mid: [1.15, 0.2, 1.1], near: [1, 0, 0.85] } : name === "rock" ? { far: [1.4, 0.64, 1.2], mid: [1.2, 0.26, 0.85], near: [1, 0, 0.66] } : { far: [1.6, 0.15, 0.5], mid: [1.4, 0.26, 0.85], near: [1, 0, 0.66] };
+      const layers: [string, number, number, number, number, number, number][] = [
+        ["far", 1500, T.far[1], 0, T.far[0], 0.0, T.far[2]],
+        ["mid", 1150, T.mid[1], 1, T.mid[0], 0.37, T.mid[2]],
+        ["near", 850, T.near[1], 2, T.near[0], 0.71, T.near[2]],
+      ];
+      for (const [part, R, haze, order, tall, shift, gain] of layers) {
+        const mat = new THREE.ShaderMaterial({
+          uniforms: { uTex: { value: null as THREE.Texture | null }, uHaze: ru.uHaze, uLight: ru.uLight, uNight: ru.uNight, uMix: { value: haze * 0.5 }, uShift: { value: shift }, uGain: { value: gain }, uFog: this.photoFog },
+          vertexShader: `varying vec2 vUv; varying float vY; void main(){ vUv = uv; vY = (modelMatrix * vec4(position, 1.0)).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+          fragmentShader: /* glsl */ `
+            uniform sampler2D uTex; uniform vec3 uHaze; uniform float uLight, uNight, uMix, uShift, uGain, uFog; varying vec2 vUv; varying float vY;
+            void main(){
+              // Four mirrored copies around the circle (a custom shader ignores texture.repeat), shifted so the layers' peaks do not line up.
+              float f = fract((vUv.x * 4.0 + uShift) * 0.5) * 2.0;
+              f = f > 1.0 ? 2.0 - f : f;
+              vec4 t = texture2D(uTex, vec2(f, vUv.y));
+              vec3 col = t.rgb * uGain * (1.6 * uLight + 0.2 * uNight);
+              col = mix(col, uHaze, uMix);
+              // Mist rising from the ground: a thick strip hides the cut-off base of the picture, a thinner veil climbs the slopes.
+              float mist = max(uFog * (1.0 - smoothstep(0.0, 160.0, vY)), 0.72 * (1.0 - smoothstep(0.0, 26.0, vY)));
+              col = mix(col, uHaze * 1.1, mist);
+              gl_FragColor = vec4(col, max(t.a, mist * step(0.0, vY)));
+              #include <tonemapping_fragment>
+              #include <colorspace_fragment>
+            }`,
+          transparent: true, depthWrite: false, side: THREE.BackSide,
+        });
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 1, 96, 1, true), mat);
+        mesh.renderOrder = -0.9 + order * 0.1; // after the star and night-sky domes (-2..-1), so they do not shine through the mountains
+        mesh.frustumCulled = false;
+        mesh.userData.R = R;
+        mesh.userData.tall = tall;
+        grp.add(mesh);
+        new THREE.TextureLoader().load(`/mountains/${name}-${part}.webp`, (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          mat.uniforms.uTex.value = tex;
+          mesh.userData.aspect = tex.image.width / tex.image.height;
+          this.sizePhotoRange(mesh, this.map?.horizon.mountains ?? 0.5);
+        });
+      }
+      this.scene.add(grp);
+      this.photoRanges[name] = grp;
+    }
+    this.photoRanges[name].visible = true;
+    for (const mesh of this.photoRanges[name].children as THREE.Mesh[]) this.sizePhotoRange(mesh, mountains);
+  }
+  /** The strip is 90 degrees of the circle wide; its height follows the picture's shape and the map's mountain size. */
+  private sizePhotoRange(mesh: THREE.Mesh, mountains: number) {
+    const R = mesh.userData.R as number, aspect = (mesh.userData.aspect as number | undefined) ?? 2.4;
+    const height = (((Math.PI / 2) * R) / aspect) * (0.25 + 0.8 * mountains) * ((mesh.userData.tall as number | undefined) ?? 1);
+    const SINK = 40; // the bottom edge reaches well below the ground, so no sliver of the background shows where the ground ends
+    mesh.scale.y = height + SINK - 3;
+    mesh.position.y = (height + SINK - 3) / 2 - SINK;
+  }
+
   // Concave snow impressions with a shaded bowl and a softly raised rim.
   private makePrints() {
     const geo = new THREE.RingGeometry(0, 0.5, 40, 8);
@@ -863,8 +1018,9 @@ export class World {
     this.treeDens.value = m.scenery?.trees ?? 0;
     this.treeCol.value.set(m.scenery?.treeColor ?? "#2f5d2a");
     const treeKind = m.scenery?.treeType ?? "fir";
-    if (this.treeDens.value > 0) this.treeSets[treeKind] ??= this.makeTreeSet(treeKind);
+    if (this.treeDens.value > 0 && treeKind !== "photo") this.treeSets[treeKind] ??= this.makeTreeSet(treeKind);
     for (const [k, mesh] of Object.entries(this.treeSets)) mesh!.visible = k === treeKind && this.treeDens.value > 0;
+    this.showPhotoTrees(treeKind === "photo" && this.treeDens.value > 0, m.scenery?.photoTrees ?? []);
     this.locked = m.view?.locked === true;
     if (this.locked) this.pos.x = 0; // a fixed view walks straight ahead: start in the middle of the path
     this.horizonH = m.horizon.height ?? 0.4;
@@ -883,7 +1039,10 @@ export class World {
     nightMat.uniforms.uCloud.value = m.sky.clouds;
     this.windLevel = m.ambience.wind;
     const real = this.usesRange();
+    this.showPhotoRange(m.horizon.photo ?? "", m.horizon.mountains);
+    this.photoFog.value = m.horizon.fog ?? 0.3;
     this.range.visible = real;
+    hazeMat.uniforms.uAmt.value = m.horizon.photo ? 0.08 : 1; // pictures of mountains keep their colors: almost no horizon haze
     this.range.scale.y = m.horizon.mountains / 0.8;
     this.rangeDirty = real; // built in the next frame, so the sky-picture change that follows a map change does not build it twice
   }
@@ -967,7 +1126,7 @@ export class World {
     return out.toDataURL("image/jpeg", 0.82);
   }
 
-  private usesRange() { return !!this.map && this.map.horizon.mountains > 0; }
+  private usesRange() { return !!this.map && this.map.horizon.mountains > 0 && !this.map.horizon.photo; }
 
   /** New mountain shapes with a fresh random seed (nothing is fixed, so no two visits look the same). */
   newScenery() {
