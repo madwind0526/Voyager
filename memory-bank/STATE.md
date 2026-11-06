@@ -2,7 +2,7 @@
 
 ## Current Wave
 
-- **Wave:** 14
+- **Wave:** 15
 - **Status:** Ready
 - **Cache Status:** CLEAN
 - **Last Checkpoint:** Photo trees/mountains, horizon.fog, Forest Path built-in map, store assets, APK rebuilt
@@ -25,3 +25,4 @@
 | 12 | Responsive full-viewport scene | Done |
 | 13 | Sit transition timing and viewport root sizing | Done |
 | 14 | Photo trees and mountains, per-map fog, Forest Path, store assets, APK | Done |
+| 15 | Moon Shore map: pebble ground, sky.picture/hour, treeSide | Done |

@@ -37,7 +37,10 @@ All fields except `schema` and `name` are optional (0..1 unless noted).
 
 | field | meaning |
 |---|---|
-| `ground.kind` | `salt` (mirror), `grass` (swaying meadow), `snow` or `sand` (both leave footprints) |
+| `ground.kind` | `salt` (mirror), `grass` (swaying meadow), `snow` or `sand` (both leave footprints), `pebble` (small rounded stones, no footprints) |
+| `sky.picture` | a sky picture of your own for this map: a path like `/sky/maps/name.jpg` (letters, digits, `_`, `-`). It stays up all the time and replaces the random day pictures. Its bottom edge is the horizon and its top edge 55 degrees up |
+| `sky.hour` | 0-24: keeps this time of day for ever (for example 17.9 = sunset); without it the map follows the clock |
+| `scenery.treeSide` `scenery.treeFrom` | photo trees only: `both` (default), `left` or `right` of the walking direction, and `treeFrom` = meters from the path centre where the trees start (0-80) |
 | `sky.aurora` `sky.nightPhotos` | aurora strength 0-1; night picture folder under `public/sky` (default `night`) |
 | `horizon.height` | 0.1-0.9: where the horizon sits, as a fraction of the screen height from the bottom (default 0.4) |
 | `horizon.fog` | 0 to 1, default 0.3: mist at the foot of the `photo` mountains (0.2 light, 0.4 thick). The lowest meters are always covered so the base never looks cut off. Use more (0.5) when the near ridge is dark |
@@ -47,7 +50,7 @@ All fields except `schema` and `name` are optional (0..1 unless noted).
 | `ground.flowers` `ground.flowerColors` | wildflower amount 0-4 and up to 4 colors (grass) |
 | `scenery.treeType` | `fir`, `spruce`, `birch`, `broadleaf` or `photo` (photographic cut-out trees that face the camera) |
 | `scenery.photoTrees` | with `photo`: any of `birch`, `spruce`, `oak`, `pine` (default: all) |
-| `ground.sea` | sand maps: the sea lies to the right of the walking direction, 0-1 (shoreline distance), with foam and swells |
+| `ground.sea` | sand and pebble maps: the sea lies to the right of the walking direction, 0-1 (shoreline distance), with foam and swells |
 | `ground.path` `ground.pathColor` | a straight path ahead (width 0-1, color) on grass, snow and sand |
 | `scenery.trees` `scenery.treeColor` | trees on both sides of the path (density 0-1, leaf color) |
 | `view.locked` | `true` fixes the camera: no turning or tilting |

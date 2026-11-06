@@ -1,0 +1,39 @@
+{
+  "schema": "voyager.map/1",
+  "id": "moon-shore",
+  "name": "Moon Shore",
+  "author": "Voyager",
+  "thumb": "/maps/moon-shore.jpg",
+  "ground": {
+    "kind": "pebble",
+    "color": "#b3aa9c",
+    "sea": 1
+  },
+  "sky": {
+    "clouds": 0.5,
+    "haze": 0.15,
+    "blue": 0.6,
+    "picture": "/sky/maps/fantasy-moon.jpg",
+    "hour": 17.9
+  },
+  "horizon": {
+    "mountains": 0,
+    "color": "#4a5a6a",
+    "height": 0.45
+  },
+  "scenery": {
+    "trees": 1,
+    "treeType": "photo",
+    "photoTrees": ["spruce", "pine", "birch"],
+    "treeSide": "left",
+    "treeFrom": 10
+  },
+  "view": {
+    "locked": true
+  },
+  "ambience": {
+    "wind": 0.45,
+    "birds": 0.3,
+    "insects": 0.1
+  }
+}

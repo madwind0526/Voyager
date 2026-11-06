@@ -192,10 +192,11 @@ const groundShader = {
   uniforms: {
     color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null },
     uBase: { value: new THREE.Color("#e8f0f4") }, uHaze: { value: new THREE.Color() },
-    uReflect: { value: 0.85 }, uCracks: { value: 0.4 }, uLight: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uKind: { value: 0 }, // uKind: 0 salt mirror, 1 meadow, 2 snow, 3 sand
+    uReflect: { value: 0.85 }, uCracks: { value: 0.4 }, uLight: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uKind: { value: 0 }, // uKind: 0 salt mirror, 1 meadow, 2 snow, 3 sand, 4 pebbles
     uCam: { value: new THREE.Vector3() }, uOffset: { value: new THREE.Vector2() },
     uGravel: { value: 0 }, // 1: the path is gravel
     uRoad: { value: 0 }, // 1: the path is an asphalt road with lane lines
+    uPebble: { value: null as THREE.Texture | null }, uPebbleOn: { value: 0 }, // pebble maps: the stone picture (until it loads, a procedural pattern is used)
     uSea: { value: 0 }, // sand maps: how close the sea on the right comes (0 = none)
     uPath: { value: 0 }, uPathCol: { value: new THREE.Color("#7a6040") }, // half-width of a straight path along the walking direction (0 = none)
   },
@@ -210,9 +211,21 @@ const groundShader = {
     }`,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse; uniform vec3 uBase, uCam, uHaze;
-    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea, uRoad, uGravel; uniform vec2 uOffset; uniform vec3 uPathCol;
+    uniform float uReflect, uCracks, uLight, uNight, uTime, uKind, uPath, uSea, uRoad, uGravel, uPebbleOn; uniform vec2 uOffset; uniform vec3 uPathCol; uniform sampler2D uPebble;
     varying vec4 vUv; varying vec3 vWorld;
     ${GLSL_NOISE}
+    // Round stones: x = distance to the nearest stone centre, y = gap to the second nearest (small = a seam between stones), z = a random tone per stone.
+    vec3 stone(vec2 p){
+      vec2 ip = floor(p), fp = fract(p);
+      float d1 = 8.0, d2 = 8.0, id = 0.0;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+        vec2 g = vec2(float(i), float(j));
+        vec2 o = vec2(hash(ip + g), hash(ip + g + 17.3));
+        float d = length(g + o - fp);
+        if (d < d1) { d2 = d1; d1 = d; id = hash(ip + g + 3.7); } else if (d < d2) d2 = d;
+      }
+      return vec3(d1, d2 - d1, id);
+    }
     float edge(vec2 p){
       vec2 ip = floor(p), fp = fract(p);
       float d1 = 8.0, d2 = 8.0;
@@ -264,6 +277,25 @@ const groundShader = {
         base += (vec3(1.0, 1.0, 1.1) * 0.7 + 0.5 * vec3(hash(gc + 3.1), hash(gc + 7.7), hash(gc + 1.3))) * sp * (1.0 - smoothstep(1.0, 20.0, dist)) * 1.6 * uLight;
       }
       else {
+        float lightK = uLight * 1.7 + 0.14 + 0.5 * uNight;
+        if (uKind > 3.5) {
+          // Pebbles: small rounded stones close by, larger ones further out, a mottled gravel bed in the distance.
+          float n1 = 1.0 - smoothstep(3.0, 22.0, dist), n2 = 1.0 - smoothstep(14.0, 80.0, dist);
+          vec3 s1 = stone(w * 15.0), s2 = stone(w * 3.4 + 9.0);
+          float dome1 = 1.0 - smoothstep(0.0, 0.62, s1.x), dome2 = 1.0 - smoothstep(0.0, 0.62, s2.x);
+          vec3 c1 = uBase * (0.7 + 0.8 * s1.z) * (0.62 + 0.55 * dome1) * (0.55 + 0.45 * smoothstep(0.0, 0.16, s1.y));
+          vec3 c2 = uBase * (0.75 + 0.6 * s2.z) * (0.65 + 0.45 * dome2) * (0.6 + 0.4 * smoothstep(0.0, 0.2, s2.y));
+          vec3 c3 = uBase * (0.7 + 0.5 * fbm(w * 0.6));
+          base = mix(mix(c3, c2, n2), c1, n1) * lightK;
+          if (uPebbleOn > 0.5) {
+            // The stone picture, mirrored at its edges and sampled at three scales with a turned copy so the repeat does not show.
+            vec2 rw = mat2(0.8, -0.6, 0.6, 0.8) * w;
+            vec3 pa = texture2D(uPebble, w / 1.3).rgb, pb = texture2D(uPebble, rw / 2.1 + 0.37).rgb, pc = texture2D(uPebble, w / 0.42 + 0.13).rgb;
+            vec3 pt = mix(pa, pb, smoothstep(0.35, 0.65, noise(w * 0.13)));
+            pt = mix(pt, pt * (0.55 + 0.9 * pc), 0.5 * (1.0 - smoothstep(3.0, 14.0, dist))); // fine stones only close by
+            base = pt * uBase * 2.0 * lightK;
+          }
+        } else {
         // Sand: long wind-built dunes with fine ripples across them, lit from one side so each ridge has a warm bright face and a darker lee.
         float fr = 1.0 - smoothstep(10.0, 90.0, dist), fm = 1.0 - smoothstep(4.0, 30.0, dist);
         vec2 sd = vec2(0.6, 0.8) * 0.08;
@@ -275,6 +307,7 @@ const groundShader = {
         base = uBase * (uLight * 1.7 + 0.14 + 0.5 * uNight) * mix(lee, sunny, clamp(0.55 + 0.5 * ss, 0.0, 1.0)) * (0.85 + 0.25 * d0);
         vec2 gs = floor(w * 80.0);
         base += vec3(1.0, 0.9, 0.7) * step(0.992, hash(gs)) * (1.0 - smoothstep(1.0, 12.0, dist)) * 0.6 * uLight; // a few glinting grains
+        }
         if (uSea > 0.0) {
           // A beach: the sea lies to the right of the walking direction, with a wavering shoreline.
           float shore = mix(9.0, 1.8, uSea) + (noise(vec2(w.y * 0.05, 7.0)) - 0.5) * 3.0 + (noise(vec2(w.y * 0.4, 1.0)) - 0.5) * 0.6;
@@ -430,6 +463,7 @@ export class World {
   private grassWind!: THREE.IUniform;
   private treeSets: Partial<Record<string, THREE.Mesh>> = {}; // trees on both sides of a path, built when a map first needs the kind
   private treeDens = { value: 0 };
+  private treeSide = { value: new THREE.Vector2(0, 0) }; // x: -1 left / 1 right / 0 both sides of the path; y: meters from the path centre where trees start
   private flowerAmt = { value: 1 }; // how many blades are wildflowers (1 = about 3.5%)
   private flowerN = { value: 0 }; // number of custom flower colors (0 = the default mix)
   private flowerCols = { value: [new THREE.Color(), new THREE.Color(), new THREE.Color(), new THREE.Color()] };
@@ -736,10 +770,10 @@ export class World {
         g.instanceCount = PER;
         const dens = { value: 0 };
         const mat = new THREE.ShaderMaterial({
-          uniforms: { uOffset: this.gu.uOffset, uLight: this.gu.uLight, uHaze: this.gu.uHaze, uPath: this.gu.uPath, uTile: { value: TILE }, uDens: dens, uTex: { value: null as THREE.Texture | null }, uAspect: { value: 0.6 }, uHeight: { value: new THREE.Vector2(cfg.h0, cfg.hr) } },
+          uniforms: { uOffset: this.gu.uOffset, uLight: this.gu.uLight, uHaze: this.gu.uHaze, uPath: this.gu.uPath, uSide: this.treeSide, uTile: { value: TILE }, uDens: dens, uTex: { value: null as THREE.Texture | null }, uAspect: { value: 0.6 }, uHeight: { value: new THREE.Vector2(cfg.h0, cfg.hr) } },
           vertexShader: /* glsl */ `
             attribute vec2 aOff; attribute vec3 aRand;
-            uniform vec2 uOffset, uHeight; uniform float uTile, uPath, uDens, uAspect;
+            uniform vec2 uOffset, uHeight, uSide; uniform float uTile, uPath, uDens, uAspect;
             varying vec2 vUv; varying float vDist, vTint, vFade;
             void main(){
               vec2 pat = aOff + uTile * floor((uOffset - aOff) / uTile + 0.5);
@@ -748,7 +782,7 @@ export class World {
               float h = uHeight.x + uHeight.y * aRand.x;
               float w = h * uAspect;
               // Not on the path (a wide crown keeps further away), not too many (density), not beyond the view distance.
-              float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.5 + 0.3 * w) + step(80.0, dist); // none beyond 80 m: every tree stands in front of the horizon mist
+              float gone = step(uDens, aRand.z) + step(abs(pat.x), uPath + 1.5 + 0.3 * w) + step(80.0, dist) + step(0.5, abs(uSide.x)) * step(uSide.x * pat.x, uSide.y); // one-sided forests start uSide.y m from the path; none beyond 80 m: every tree stands in front of the horizon mist
               vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
               vec3 world = vec3(sc.x, 0.0, sc.y) + (right * position.x * w + vec3(0.0, position.y * h, 0.0)) * (gone > 0.0 ? 0.0 : 1.0);
               vUv = vec2(aRand.y > 0.5 ? 1.0 - uv.x : uv.x, uv.y); // half of the trees are mirrored
@@ -926,7 +960,7 @@ export class World {
   }
 
   private stepPrints(moving: boolean, dt: number, fx: number, fz: number) {
-    if (this.kind < 2) return;
+    if (this.kind < 2 || this.kind > 3) return;
     if (moving) {
       this.stride += WALK_SPEED * dt;
       if (this.stride >= 0.62) {
@@ -994,19 +1028,28 @@ export class World {
 
   setMap(m: MapSpec) {
     this.map = m;
-    const kind = m.ground.kind === "grass" ? 1 : m.ground.kind === "snow" ? 2 : m.ground.kind === "sand" ? 3 : 0;
+    const kind = m.ground.kind === "grass" ? 1 : m.ground.kind === "snow" ? 2 : m.ground.kind === "sand" ? 3 : m.ground.kind === "pebble" ? 4 : 0;
     this.kind = kind;
     this.gu.uKind.value = kind;
     this.ground.visible = kind === 0; // the mirror pass only runs on salt
     this.plain.visible = kind !== 0;
     this.grass.visible = kind === 1;
-    this.printMesh.visible = kind >= 2; // footprints stay in snow and sand
+    this.printMesh.visible = kind === 2 || kind === 3; // footprints stay in snow and sand (not on pebbles)
     (this.printMesh.material as THREE.MeshBasicMaterial).color.set(kind === 3 ? "#d9b48a" : "#ffffff");
     this.flakes.visible = false;
     this.snowLeft = 0;
     this.prints = [];
     this.grassWind.value = 0.35 + m.ambience.wind * 0.9;
-    this.gu.uSea.value = kind === 3 ? (m.ground.sea ?? 0) : 0;
+    if (kind === 4 && !this.gu.uPebble.value) {
+      new THREE.TextureLoader().load("/textures/pebbles.jpg", (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping;
+        tex.anisotropy = 8;
+        this.gu.uPebble.value = tex;
+        this.gu.uPebbleOn.value = 1;
+      });
+    }
+    this.gu.uSea.value = kind >= 3 ? (m.ground.sea ?? 0) : 0;
     this.flowerAmt.value = m.ground.flowers ?? 1;
     const fc = (m.ground.flowerColors ?? []).slice(0, 4);
     this.flowerN.value = fc.length;
@@ -1020,13 +1063,16 @@ export class World {
     const treeKind = m.scenery?.treeType ?? "fir";
     if (this.treeDens.value > 0 && treeKind !== "photo") this.treeSets[treeKind] ??= this.makeTreeSet(treeKind);
     for (const [k, mesh] of Object.entries(this.treeSets)) mesh!.visible = k === treeKind && this.treeDens.value > 0;
+    this.treeSide.value.set(m.scenery?.treeSide === "left" ? -1 : m.scenery?.treeSide === "right" ? 1 : 0, (m.scenery?.treeFrom ?? 0));
     this.showPhotoTrees(treeKind === "photo" && this.treeDens.value > 0, m.scenery?.photoTrees ?? []);
     this.locked = m.view?.locked === true;
     if (this.locked) this.pos.x = 0; // a fixed view walks straight ahead: start in the middle of the path
     this.horizonH = m.horizon.height ?? 0.4;
     this.gu.uBase.value.set(m.ground.color);
-    this.gu.uReflect.value = kind === 3 ? 0.03 : m.ground.reflect;
+    this.gu.uReflect.value = kind >= 3 ? 0.03 : m.ground.reflect;
     this.gu.uCracks.value = kind === 0 ? m.ground.cracks : 0;
+    if (m.sky.picture) { this.mapPicture = true; this.setSkyPhoto("day", m.sky.picture); }
+    else if (this.mapPicture) { this.mapPicture = false; this.setSkyPhoto("day", null); } // leaving a map with its own sky picture
     nightMat.uniforms.uAurora.value = m.sky.aurora ?? 0;
     const u = this.sky.material.uniforms;
     u.cloudCoverage.value = 0.1 + m.sky.clouds * 0.6;
@@ -1047,6 +1093,7 @@ export class World {
     this.rangeDirty = real; // built in the next frame, so the sky-picture change that follows a map change does not build it twice
   }
 
+  private mapPicture = false;
   private photoUrl: Record<"day" | "night", string | null> = { day: null, night: null };
   /** Use a sky picture for the day or the night phase (null = the procedural sky). */
   setSkyPhoto(kind: "day" | "night", url: string | null) {
@@ -1162,6 +1209,7 @@ export class World {
   }
 
   update(dt: number, hour: number) {
+    if ((this.map?.sky.hour ?? -1) >= 0) hour = this.map!.sky.hour; // a map can keep one time of day (a sunset that never ends)
     if (this.rangeDirty) this.newScenery();
     if (this.locked) { this.yaw = 0; this.pitch = 0.12; } // a fixed view: always facing straight ahead
     this.t += dt;

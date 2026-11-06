@@ -41,6 +41,7 @@ if (import.meta.env.DEV) Object.assign(window, { __sound: sound, __world: world 
 
 let bMaps: MapSpec[] = [];
 const allMaps = () => [...bMaps, ...Object.values(s.maps)];
+const curMap = () => allMaps().find((x) => x.id === s.mapId) ?? bMaps[0];
 
 async function loadBuiltins() {
   const get = async (p: string) => (await fetch(p)).json();
@@ -51,7 +52,7 @@ async function loadBuiltins() {
     return { ...r.value, id: raw.id, ...(raw.thumb ? { thumb: raw.thumb } : {}) };
   };
   // One missing or broken file must not stop the app: skip it, and fall back to a plain salt map if none loads.
-  const done = await Promise.allSettled(["salt-desert", "grassland", "snow-north", "forest-path"].map((n) => norm(`/maps/${n}.json`, validateMap)));
+  const done = await Promise.allSettled(["salt-desert", "grassland", "snow-north", "forest-path", "moon-shore"].map((n) => norm(`/maps/${n}.json`, validateMap)));
   bMaps = done.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   if (!bMaps.length) bMaps = [{ ...(validateMap({ schema: "voyager.map/1", name: "Salt Desert" }) as any).value, id: "salt-desert" }];
 }
@@ -572,7 +573,7 @@ function tick(now: number) {
   if (stamNum.textContent !== sn) stamNum.textContent = sn;
   stam.classList.toggle("empty", forced);
 
-  const hr = hourNow();
+  const hr = (curMap().sky.hour ?? -1) >= 0 ? curMap().sky.hour : hourNow();
   world.update(dt, hr);
   if (world.sunUp !== lastSunUp) { lastSunUp = world.sunUp; void pickSky(); } // dusk or dawn: a new random picture
   sound.setNight(world.night);
@@ -609,7 +610,8 @@ let lastSunUp: boolean | null = null;
 const rnd = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
 async function pickSky() {
   const kind = world.sunUp ? "day" : "night";
-  const map = allMaps().find((m) => m.id === s.mapId) ?? bMaps[0];
+  const map = curMap();
+  if (map.sky.picture) { world.newScenery(); return; } // the map brings its own sky picture
   const folder = kind === "day" ? "day" : map.sky.nightPhotos;
   const list = await skyList(folder);
   let i = list.length ? rnd(list.length) : -1;

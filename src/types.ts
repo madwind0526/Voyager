@@ -8,10 +8,10 @@ export interface ClothesSpec {
 export interface MapSpec {
   schema: string; id?: string; name: string; author: string;
   thumb?: string; // card picture; built-in maps only (community maps cannot point at arbitrary URLs)
-  ground: { kind: "salt" | "grass" | "snow" | "sand"; color: string; reflect: number; cracks: number; path: number; sea: number; pathColor: string; pathStyle: "dirt" | "gravel" | "road"; flowers: number; flowerColors: string[] };
-  sky: { clouds: number; stars: number; haze: number; blue: number; aurora: number; nightPhotos: string };
+  ground: { kind: "salt" | "grass" | "snow" | "sand" | "pebble"; color: string; reflect: number; cracks: number; path: number; sea: number; pathColor: string; pathStyle: "dirt" | "gravel" | "road"; flowers: number; flowerColors: string[] };
+  sky: { clouds: number; stars: number; haze: number; blue: number; aurora: number; nightPhotos: string; picture: string; hour: number };
   horizon: { mountains: number; color: string; snow: number; trees: number; height: number; layout: "valley" | "ahead"; photo: "" | "forest" | "snow" | "rock" | "blue" | "green"; fog: number };
-  scenery: { trees: number; treeColor: string; treeType: "fir" | "spruce" | "birch" | "broadleaf" | "photo"; photoTrees: string[] };
+  scenery: { trees: number; treeColor: string; treeType: "fir" | "spruce" | "birch" | "broadleaf" | "photo"; photoTrees: string[]; treeSide: "both" | "left" | "right"; treeFrom: number };
   view: { locked: boolean };
   ambience: { wind: number; birds: number; insects: number };
 }

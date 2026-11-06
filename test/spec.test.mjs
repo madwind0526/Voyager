@@ -9,6 +9,11 @@ test("built-in content passes validation", () => {
   for (const f of ["basic", "linen", "coat", "stripe"]) assert.ok(validateClothes(read(`../public/clothes/${f}.json`)).ok, f);
   assert.ok(validateMap(read("../public/maps/salt-desert.json")).ok);
   assert.ok(validateMap(read("../public/maps/forest-path.json")).ok);
+  const moon = validateMap(read("../public/maps/moon-shore.json")).value;
+  assert.equal(moon.ground.kind, "pebble");
+  assert.equal(moon.sky.hour, 17.9);
+  assert.equal(moon.scenery.treeSide, "left");
+  assert.equal(validateMap({ schema: "voyager.map/1", name: "x", sky: { picture: "http://evil/x.jpg" } }).ok, false);
 });
 
 test("built-in maps carry the new fields", () => {
@@ -33,7 +38,7 @@ test("bad content is rejected", () => {
 });
 
 // The authoring guide and the sample maps must always be valid, and use only the documented keys.
-const ALLOWED = { "": ["schema", "name", "author", "ground", "sky", "horizon", "ambience", "scenery", "view"], scenery: ["trees", "treeColor", "treeType", "photoTrees"], view: ["locked"], ground: ["kind", "color", "reflect", "cracks", "path", "pathColor", "sea", "pathStyle", "flowers", "flowerColors"], sky: ["clouds", "stars", "haze", "blue", "aurora", "nightPhotos"], horizon: ["mountains", "color", "snow", "trees", "height", "layout", "photo", "fog"], ambience: ["wind", "birds", "insects"] };
+const ALLOWED = { "": ["schema", "name", "author", "ground", "sky", "horizon", "ambience", "scenery", "view"], scenery: ["trees", "treeColor", "treeType", "photoTrees", "treeSide", "treeFrom"], view: ["locked"], ground: ["kind", "color", "reflect", "cracks", "path", "pathColor", "sea", "pathStyle", "flowers", "flowerColors"], sky: ["clouds", "stars", "haze", "blue", "aurora", "nightPhotos", "picture", "hour"], horizon: ["mountains", "color", "snow", "trees", "height", "layout", "photo", "fog"], ambience: ["wind", "birds", "insects"] };
 const onlyKnownKeys = (m) => {
   for (const k of Object.keys(m)) assert.ok(ALLOWED[""].includes(k), `unknown key ${k}`);
   for (const g of ["ground", "sky", "horizon", "ambience", "scenery", "view"]) for (const k of Object.keys(m[g] ?? {})) assert.ok(ALLOWED[g].includes(k), `unknown key ${g}.${k}`);
