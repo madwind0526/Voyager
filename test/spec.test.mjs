@@ -8,6 +8,7 @@ const read = (p) => JSON.parse(fs.readFileSync(new URL(p, import.meta.url), "utf
 test("built-in content passes validation", () => {
   for (const f of ["basic", "linen", "coat", "stripe"]) assert.ok(validateClothes(read(`../public/clothes/${f}.json`)).ok, f);
   assert.ok(validateMap(read("../public/maps/salt-desert.json")).ok);
+  assert.ok(validateMap(read("../public/maps/forest-path.json")).ok);
 });
 
 test("built-in maps carry the new fields", () => {

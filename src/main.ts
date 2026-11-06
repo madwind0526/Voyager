@@ -51,7 +51,7 @@ async function loadBuiltins() {
     return { ...r.value, id: raw.id, ...(raw.thumb ? { thumb: raw.thumb } : {}) };
   };
   // One missing or broken file must not stop the app: skip it, and fall back to a plain salt map if none loads.
-  const done = await Promise.allSettled(["salt-desert", "grassland", "snow-north"].map((n) => norm(`/maps/${n}.json`, validateMap)));
+  const done = await Promise.allSettled(["salt-desert", "grassland", "snow-north", "forest-path"].map((n) => norm(`/maps/${n}.json`, validateMap)));
   bMaps = done.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   if (!bMaps.length) bMaps = [{ ...(validateMap({ schema: "voyager.map/1", name: "Salt Desert" }) as any).value, id: "salt-desert" }];
 }
