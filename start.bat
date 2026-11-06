@@ -53,10 +53,11 @@ if /i "%MODE%"=="dev" (
     echo Done. Open http://127.0.0.1:%API_PORT%
 )
 
-rem Open the app in a phone-sized window (about 9:19); it still resizes freely and the app fills it. Skipped with nopause.
+rem Open the app in a tall window (650x1200); it still resizes freely and the app fills it. Skipped with nopause.
 if /i not "%NOPAUSE%"=="nopause" (
     ping -n 3 127.0.0.1 >nul
     if /i "%MODE%"=="dev" (set "URL=http://127.0.0.1:%WEB_PORT%") else set "URL=http://127.0.0.1:%API_PORT%"
-    start "" msedge --app=!URL! --window-size=430,900
+    start "" msedge --app=!URL! --window-size=650,1200
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\sizewin.ps1" 650 1200
 )
 if /i not "%NOPAUSE%"=="nopause" pause

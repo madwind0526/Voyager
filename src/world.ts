@@ -847,13 +847,14 @@ export class World {
       // name, radius, extra haze, draw order, height factor (far peaks rise above the nearer ridges), sideways shift, brightness.
       // Far layers are light and hazy, near layers dark and crisp: strong contrast between the layers.
       // The "blue" set is drawn in layered tones already (pale far, cobalt middle, navy near), so it needs no extra haze.
-      const T = name === "blue" ? { far: [1.5, 0.15, 1], mid: [1.3, 0, 1], near: [1, 0, 1] } : name === "snow" ? { far: [1.3, 0.45, 1.1], mid: [1.15, 0.12, 1], near: [1, 0, 0.85] } : name === "green" ? { far: [1.25, 0.6, 1.15], mid: [1.15, 0.2, 1.1], near: [1, 0, 0.85] } : name === "rock" ? { far: [1.4, 0.64, 1.2], mid: [1.2, 0.26, 0.85], near: [1, 0, 0.66] } : { far: [1.6, 0.15, 0.5], mid: [1.4, 0.26, 0.85], near: [1, 0, 0.66] };
+      const T = name === "blue" ? { far: [1.5, 0.15, 1], mid: [1.3, 0, 1], near: [1, 0, 1] } : name === "snow" ? { far: [1.3, 0.45, 1.1], mid: [1.15, 0.12, 1], near: [1, 0, 0.85] } : name === "green" ? { far: [1.25, 0.6, 1.15], mid: [1.15, 0.26, 0.8], near: [1, 0, 0.62] } : name === "rock" ? { far: [1.4, 0.64, 1.2], mid: [1.2, 0.26, 0.85], near: [1, 0, 0.66] } : { far: [1.6, 0.15, 0.5], mid: [1.4, 0.26, 0.85], near: [1, 0, 0.66] };
       const layers: [string, number, number, number, number, number, number][] = [
         ["far", 1500, T.far[1], 0, T.far[0], 0.0, T.far[2]],
         ["mid", 1150, T.mid[1], 1, T.mid[0], 0.37, T.mid[2]],
         ["near", 850, T.near[1], 2, T.near[0], 0.71, T.near[2]],
       ];
       for (const [part, R, haze, order, tall, shift, gain] of layers) {
+        if (name === "green" && part === "far") continue; // the far picture is a cut-out of misty sky, not a ridge: the grassland looks better without it
         const mat = new THREE.ShaderMaterial({
           uniforms: { uTex: { value: null as THREE.Texture | null }, uHaze: ru.uHaze, uLight: ru.uLight, uNight: ru.uNight, uMix: { value: haze * 0.5 }, uShift: { value: shift }, uGain: { value: gain }, uFog: this.photoFog },
           vertexShader: `varying vec2 vUv; varying float vY; void main(){ vUv = uv; vY = (modelMatrix * vec4(position, 1.0)).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -865,10 +866,13 @@ export class World {
               f = f > 1.0 ? 2.0 - f : f;
               vec4 t = texture2D(uTex, vec2(f, vUv.y));
               vec3 col = t.rgb * uGain * (1.6 * uLight + 0.2 * uNight);
-              col = mix(col, uHaze, uMix);
+              // Dawn/dusk haze is orange; mixed in it paints the photo like a colored filter. Use its brightness only (neutral, slightly cool).
+              vec3 hz = vec3(dot(uHaze, vec3(0.333))) * vec3(0.9, 1.0, 1.15);
+              col = mix(col, hz, uMix);
               // Mist rising from the ground: a thick strip hides the cut-off base of the picture, a thinner veil climbs the slopes.
               float mist = max(uFog * (1.0 - smoothstep(0.0, 160.0, vY)), 0.72 * (1.0 - smoothstep(0.0, 26.0, vY)));
-              col = mix(col, uHaze * 1.1, mist);
+              col = mix(col, hz * 1.1, mist);
+              col *= 1.0 - 0.85 * uNight; // the photos are daylight pictures: at night they must sink into the dark
               gl_FragColor = vec4(col, max(t.a, mist * step(0.0, vY)));
               #include <tonemapping_fragment>
               #include <colorspace_fragment>
