@@ -1,8 +1,7 @@
-﻿# Active Context
+# Active Context
 
 ## Current Focus
 
-- Wave 13 complete: walk-to-sit lowers the body during animation fade and folds knees after descent begins.
-- App root fills the browser viewport and scene resizes with the window.
-- Verified walk-to-sit trajectory and final ground contact on selected Ch06; settings open/close, walk/sit toggle, and viewport bounds checked.
-- `npm run build` passes. Animation folders and dark dropdown updates remain in place.
+- Wave 14 complete: photo trees and layered photo mountains (`horizon.photo`), per-map `horizon.fog`, Forest Path as the 4th built-in map, new map card pictures.
+- Store assets made (feature graphic 1024x500, phone mockups 720x1280) from real app screenshots; debug APK rebuilt (`Voyager.apk`).
+- Open: phone performance of photo trees/mountains not checked on a device; APK is a debug build (release AAB needs a signing key).

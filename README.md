@@ -3,8 +3,8 @@
 A quiet, mobile-first walking app. A person, seen from behind, walks across a wide, flat world while the sky, sun, moon, clouds, wind and sounds follow the time of day. Walk until the stamina runs out, then sit and rest. Music always plays; turn it off and the person sits down.
 
 - Portrait only, icon-only menus, built for phones (it also runs in a desktop browser).
-- Maps: **Salt Desert** (mirror lake), **Grassland** (swaying meadow with wildflowers), **Snow North** (snowfall, footprints, aurora). You can add your own with a JSON file (see [map 제작.md](map%20제작.md), written so an LLM can create maps for you), up to 9 maps in total.
-- Maps can fix the camera, put trees and a path on both sides of the walker, set the horizon height, or add a sea to the right of a sandy beach (see the map guide).
+- Maps: **Salt Desert** (mirror lake under layered blue ridges), **Grassland** (swaying meadow, tall forested peaks), **Snow North** (snowfall, footprints, aurora, snow peaks), **Forest Path** (a gravel path between photo trees that grow and slide past as you walk). You can add your own with a JSON file (see [map 제작.md](map%20제작.md), written so an LLM can create maps for you), up to 9 maps in total.
+- Maps can draw the horizon from pictures (`horizon.photo`: three overlapping mountain layers, with `horizon.fog` setting the mist at their foot) and use photo trees (`scenery.treeType: "photo"`). Maps can also fix the camera, put trees and a path on both sides of the walker, set the horizon height, or add a sea to the right of a sandy beach (see the map guide).
 - Day and night cycle with a chosen time zone and day length (3 / 6 / 9 / 12 / 24 hours).
 - Real ambience recordings (wind, crickets, forest), a music player (YouTube playlist, local files, URLs) with a 10-band equalizer.
 - 9 playable characters (Quaternius, CC0) that move with the clips stored in their own files (idle, walk, sit down).

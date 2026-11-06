@@ -1,11 +1,11 @@
-﻿# State
+# State
 
 ## Current Wave
 
-- **Wave:** 13
+- **Wave:** 14
 - **Status:** Ready
 - **Cache Status:** CLEAN
-- **Last Checkpoint:** Sit transition applies pelvis descent during walk fade; app fills and resizes with viewport
+- **Last Checkpoint:** Photo trees/mountains, horizon.fog, Forest Path built-in map, store assets, APK rebuilt
 
 ## Wave History
 
@@ -24,3 +24,4 @@
 | 11 | Grounded sit pose, animation folders, and dark dropdown options | Done |
 | 12 | Responsive full-viewport scene | Done |
 | 13 | Sit transition timing and viewport root sizing | Done |
+| 14 | Photo trees and mountains, per-map fog, Forest Path, store assets, APK | Done |
