@@ -2,6 +2,7 @@
 
 ## Current Focus
 
+- Wave 16: grassland mountains (far layer dropped, darker, neutral dawn haze, darker at night); Windows installer (`npm run desktop:build`, Electron NSIS, port 4316) published as GitHub release v0.1.0.
 - Wave 15: new map fields (Moon Shore map was removed again; the features stay, no built-in map uses them): sky.picture, sky.hour, scenery.treeSide/treeFrom, ground.kind pebble.
 - Wave 14 complete: photo trees and layered photo mountains (`horizon.photo`), per-map `horizon.fog`, Forest Path as the 4th built-in map, new map card pictures.
 - Store assets made (feature graphic 1024x500, phone mockups 720x1280) from real app screenshots; debug APK rebuilt (`Voyager.apk`).

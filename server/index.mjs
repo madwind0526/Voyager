@@ -9,10 +9,14 @@ import { validateClothes, validateMap } from "../shared/spec.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT ?? 4315);
+// The desktop installer (desktop/main.cjs) points these at its bundled web files and a per-user data folder.
+const PUB = process.env.VOYAGER_WWW ?? path.join(ROOT, "public");
+const DIST = process.env.VOYAGER_WWW ?? path.join(ROOT, "dist");
+const DATA = process.env.VOYAGER_DATA ?? path.join(ROOT, "data");
 // Bind to loopback by default; set HOST=0.0.0.0 to reach it from a phone on the LAN.
 const HOST = process.env.HOST ?? "127.0.0.1";
 const MAX_BODY = 64 * 1024;
-const settingsFile = path.join(ROOT, "data", "settings.json");
+const settingsFile = path.join(DATA, "settings.json");
 const KINDS = { clothes: validateClothes, maps: validateMap };
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json",
@@ -128,17 +132,17 @@ const IMG_RE = /\.(jpe?g|png|webp)$/i;
 const skyList = (kind) => {
   if (!/^[a-z0-9_-]{1,24}$/i.test(kind ?? "")) return []; // a plain folder name, never a path
   try {
-    return fs.readdirSync(path.join(ROOT, "public", "sky", kind)).filter((f) => IMG_RE.test(f)).sort().map((f) => `/sky/${kind}/` + encodeURIComponent(f));
+    return fs.readdirSync(path.join(PUB, "sky", kind)).filter((f) => IMG_RE.test(f)).sort().map((f) => `/sky/${kind}/` + encodeURIComponent(f));
   } catch { return []; }
 };
 
 // Rigged humanoid GLB and FBX files in people are offered in the profile.
 const peopleList = () => {
-  try { return fs.readdirSync(path.join(ROOT, "public", "models", "people")).filter((f) => /\.(glb|fbx)$/i.test(f)).sort(); } catch { return []; }
+  try { return fs.readdirSync(path.join(PUB, "models", "people")).filter((f) => /\.(glb|fbx)$/i.test(f)).sort(); } catch { return []; }
 };
 const animationList = () => {
   const list = (kind) => {
-    try { return fs.readdirSync(path.join(ROOT, "public", "models", "animations", kind)).filter((f) => /\.fbx$/i.test(f)).sort().map((file) => ({ id: `${kind}/${file}`, file })); }
+    try { return fs.readdirSync(path.join(PUB, "models", "animations", kind)).filter((f) => /\.fbx$/i.test(f)).sort().map((file) => ({ id: `${kind}/${file}`, file })); }
     catch { return []; }
   };
   return { walk: list("walk"), dance: list("dance") };
@@ -146,7 +150,7 @@ const animationList = () => {
 
 // ---- maps the player added: kept as files in public/maps/added (a card picture sits next to each .json) ----
 // Removing a map from the app's list never deletes these files.
-const addedDir = path.join(ROOT, "public", "maps", "added");
+const addedDir = path.join(PUB, "maps", "added");
 async function addedMapsApi(req, res, action) {
   if (!isLocal(req)) return send(res, 403, { error: "local only" });
   if (req.method !== "POST") return send(res, 405, { error: "method not allowed" });
@@ -199,7 +203,7 @@ async function settingsApi(req, res) {
   return send(res, 200, { ok: true });
 }
 
-const dir = (kind) => path.join(ROOT, "data", "community", kind);
+const dir = (kind) => path.join(DATA, "community", kind);
 const send = (res, code, body, type = "application/json") => {
   res.writeHead(code, { "content-type": type });
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
@@ -254,10 +258,10 @@ http.createServer(async (req, res) => {
     if (parts[0] === "api" && parts[1] === "fs") return fsApi(req, res, url, parts.slice(2));
     if (parts[0] === "api" && parts[1] === "community") return await api(req, res, parts.slice(2));
     // Static files from dist/; the path is resolved and must stay inside it.
-    const dist = path.join(ROOT, "dist");
+    const dist = DIST;
     const rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname);
     let file = path.join(dist, rel);
-    const pub = path.join(ROOT, "public");
+    const pub = PUB;
     if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(pub, rel);
     const within = (root) => file === root || file.startsWith(root + path.sep); // with the separator: "dist2" is not inside "dist"
     const inside = within(dist) || within(pub);

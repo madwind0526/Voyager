@@ -29,3 +29,5 @@ android/app/src/main/assets/public/
 
 # generated drafts and store material
 store/gen/
+release/
+desktop-www/

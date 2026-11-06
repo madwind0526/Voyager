@@ -11,6 +11,12 @@ A quiet, mobile-first walking app. A person, seen from behind, walks across a wi
 
 Tech: TypeScript, Vite, three.js, Web Audio, a small Node HTTP server. No UI framework.
 
+## Download (Windows, no setup)
+
+Get `Voyager Setup x.y.z.exe` from the [Releases](https://github.com/madwind0526/Voyager/releases) page and run it; no Node.js or other tools are needed. The installer is not code-signed, so Windows SmartScreen may warn: choose "More info", then "Run anyway". Settings and community files are kept in `%APPDATA%\Voyager`.
+
+To build the installer yourself: `npm run desktop:build` (output in `release/`, bundled web files in `desktop-www/`). Characters under CC BY-NC (`person-f.glb`) and Mixamo files are left out of it.
+
 ## Install
 
 Requirements: Node.js 20 or newer (tested on 24), Windows, macOS or Linux.

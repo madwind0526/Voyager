@@ -24,9 +24,10 @@ start.bat dev      # API with auto-restart (4315) + Vite dev (5186)
 stop.bat           # stop both
 npm test           # spec validator tests
 npm run build      # typecheck + production build
+npm run desktop:build  # Windows installer (Electron, output in release/), app shell is desktop/main.cjs
 ```
 
-Ports are assigned in `C:\Claude\PORTS.md` (5186 UI, 4315 API). To test on a phone: `set HOST=0.0.0.0` before `start.bat`.
+Ports are assigned in `C:\Claude\PORTS.md` (5186 UI, 4315 API, 4316 installed desktop app). To test on a phone: `set HOST=0.0.0.0` before `start.bat`.
 
 ## Rules
 
@@ -53,3 +54,4 @@ Ports are assigned in `C:\Claude\PORTS.md` (5186 UI, 4315 API). To test on a pho
 - Night sky: the moon is drawn by `addMoon()` in the night shader, over the procedural sky and over night pictures; it is bigger (`uMoonSize`) and now and then red (`setMoonRed`, one night in four, chosen in `pickSky()`). Night pictures in `public/sky/night` must not contain a moon (they repeat mirrored, so it would appear twice). `world.moonOverride` pins the moon for debugging.
 - Bodies are listed in `src/bodies.ts`; add a rigged humanoid GLB to `public/models` and one line there to offer it in the profile.
 - Dev only: `window.__sound`, `window.__world` (studio) for debugging.
+- Desktop installer: `scripts/build-desktop.mjs` stages `desktop-www/` (no person-f.glb, no FBX, no Mixamo) and runs electron-builder (NSIS, per-user, unsigned). The server reads `VOYAGER_WWW`/`VOYAGER_DATA` when `desktop/main.cjs` sets them. In this Claude Code environment `ELECTRON_RUN_AS_NODE=1` is set and comes back every shell call: remove it in the same call before launching `Voyager.exe`, or it runs as plain node and exits.

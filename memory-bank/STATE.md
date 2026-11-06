@@ -2,7 +2,7 @@
 
 ## Current Wave
 
-- **Wave:** 15
+- **Wave:** 16
 - **Status:** Ready
 - **Cache Status:** CLEAN
 - **Last Checkpoint:** Photo trees/mountains, horizon.fog, Forest Path built-in map, store assets, APK rebuilt
@@ -26,3 +26,4 @@
 | 13 | Sit transition timing and viewport root sizing | Done |
 | 14 | Photo trees and mountains, per-map fog, Forest Path, store assets, APK | Done |
 | 15 | Moon Shore map: pebble ground, sky.picture/hour, treeSide | Done |
+| 16 | Grassland mountain fixes; Windows installer (Electron) and GitHub release v0.1.0 | Done |
