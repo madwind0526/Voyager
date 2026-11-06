@@ -5,4 +5,5 @@ Put night-sky pictures here (jpg, png or webp). The app picks them up automatica
 - A picture is shown as a window on the sky: its bottom edge is the horizon, its top edge is 55 degrees up,
   and it repeats mirrored sideways. Crop to the sky only: no ground, trees or mountains.
 - Photos at about 3:2 look natural. Large images are fine, but 2000 px wide is plenty.
+- Pictures must not show a moon: the app draws its own (silver, sometimes red), and the picture repeats mirrored, so a moon in it would appear twice.
 - Use only pictures you have the right to use.

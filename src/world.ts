@@ -45,13 +45,13 @@ moonMap.colorSpace = THREE.SRGBColorSpace;
 const nightMat = new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending,
   uniforms: {
-    uMoon: { value: new THREE.Vector3() }, uStars: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uCloud: { value: 0.5 }, uAurora: { value: 0 },
+    uMoon: { value: new THREE.Vector3() }, uMoonSize: { value: 0.09 }, uMoonTint: { value: new THREE.Vector3(0.9, 0.97, 1.1) }, uMoonGlow: { value: new THREE.Vector3(0.45, 0.62, 1.0) }, uStars: { value: 1 }, uNight: { value: 0 }, uTime: { value: 0 }, uCloud: { value: 0.5 }, uAurora: { value: 0 },
     uMap: { value: starMap }, uMoonMap: { value: moonMap }, uRot: { value: new THREE.Matrix3() },
     uPhoto: { value: null as THREE.Texture | null }, uPhotoOn: { value: 0 }, uPhotoAspect: { value: 1.5 },
   },
   vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: /* glsl */ `
-    uniform vec3 uMoon; uniform float uStars, uNight, uTime, uCloud, uAurora; uniform sampler2D uMap, uMoonMap, uPhoto; uniform mat3 uRot; uniform float uPhotoOn, uPhotoAspect;
+    uniform vec3 uMoon, uMoonTint, uMoonGlow; uniform float uMoonSize, uStars, uNight, uTime, uCloud, uAurora; uniform sampler2D uMap, uMoonMap, uPhoto; uniform mat3 uRot; uniform float uPhotoOn, uPhotoAspect;
     varying vec3 vDir;
     ${GLSL_NOISE}
     ${PHOTO_GLSL}
@@ -83,6 +83,23 @@ const nightMat = new THREE.ShaderMaterial({
       float v = on * (s + cross_) * (0.35 + 0.65 * hash(q.zx + 7.0));
       return v * mix(vec3(0.7, 0.82, 1.0), vec3(1.0, 0.9, 0.75), hash(q.xz + 11.0));
     }
+    // The moon: real surface detail, a tint (silver or red) and a glow. Also used over a night picture.
+    vec3 addMoon(vec3 col, vec3 d){
+      float md = dot(d, uMoon);
+      vec3 mz = uMoon;
+      vec3 mx = normalize(cross(vec3(0.0, 1.0, 0.0), mz));
+      vec3 my = cross(mz, mx);
+      vec2 mp = vec2(dot(d, mx), dot(d, my)) / uMoonSize;
+      float mr = length(mp);
+      if (md > 0.0 && mr < 1.0) {
+        float z = sqrt(1.0 - mr * mr);
+        vec3 n = vec3(mp, z);
+        vec2 muv = vec2(atan(n.x, n.z) / 6.2831853 + 0.5, asin(clamp(n.y, -1.0, 1.0)) / 3.1415927 + 0.5);
+        col = mix(col, texture2D(uMoonMap, muv).rgb * uMoonTint * pow(z, 0.3) * 1.7, smoothstep(1.0, 0.94, mr));
+      }
+      col += uMoonGlow * (0.55 * exp(-max(mr - 1.0, 0.0) * 5.0) * step(0.0, md) * smoothstep(0.0, 0.2, mr) + 0.12 * pow(max(md, 0.0), 120.0));
+      return col;
+    }
     void main(){
       vec3 d = normalize(vDir);
       float above = smoothstep(-0.02, 0.05, d.y);
@@ -91,6 +108,7 @@ const nightMat = new THREE.ShaderMaterial({
         ph *= mix(1.0, 0.62, smoothstep(0.12, 0.6, d.y)); // darker overhead
         ph += vec3(0.06, 0.08, 0.15) * pow(1.0 - clamp(d.y * 2.2, 0.0, 1.0), 2.5); // brighter toward the mountains
         ph += vec3(1.0, 0.97, 0.92) * 0.5 * (meteor(d, 0.0, 19.0) + meteor(d, 0.37, 31.0)) * uStars;
+        ph = addMoon(ph, d);
         gl_FragColor = vec4(ph * above * uNight * uStars * 1.9, 1.0); // x1.9: the output pass tone-maps the domes too
         #include <colorspace_fragment>
         return;
@@ -136,19 +154,7 @@ const nightMat = new THREE.ShaderMaterial({
       vec3 cloudCol = mix(vec3(0.012, 0.026, 0.065), vec3(0.78, 0.84, 1.0), rim * moonAmt * 0.85);
       vec3 col = sky * (1.0 - cm) * 0.7 * mix(1.0, 0.7, smoothstep(0.2, 0.7, d.y)) + cloudCol * cm * 0.9;
 
-      // Full moon with real surface detail and a cool glow.
-      vec3 mz = uMoon;
-      vec3 mx = normalize(cross(vec3(0.0, 1.0, 0.0), mz));
-      vec3 my = cross(mz, mx);
-      vec2 mp = vec2(dot(d, mx), dot(d, my)) / 0.05;
-      float mr = length(mp);
-      if (md > 0.0 && mr < 1.0) {
-        float z = sqrt(1.0 - mr * mr);
-        vec3 n = vec3(mp, z);
-        vec2 muv = vec2(atan(n.x, n.z) / 6.2831853 + 0.5, asin(clamp(n.y, -1.0, 1.0)) / 3.1415927 + 0.5);
-        col = mix(col, texture2D(uMoonMap, muv).rgb * vec3(0.9, 0.97, 1.1) * pow(z, 0.3) * 1.7, smoothstep(1.0, 0.94, mr));
-      }
-      col += vec3(0.45, 0.62, 1.0) * (0.55 * exp(-max(mr - 1.0, 0.0) * 5.0) * step(0.0, md) * smoothstep(0.0, 0.2, mr) + 0.12 * pow(max(md, 0.0), 120.0));
+      col = addMoon(col, d);
 
       // Night glow: deep blue overhead, a warm rose haze along the horizon (distant lights on the dust).
       vec3 glow = mix(vec3(0.11, 0.06, 0.08), vec3(0.002, 0.006, 0.02), pow(clamp(d.y * 1.7, 0.0, 1.0), 0.45));
@@ -1093,6 +1099,12 @@ export class World {
     this.rangeDirty = real; // built in the next frame, so the sky-picture change that follows a map change does not build it twice
   }
 
+  /** The moon is silver, or now and then a red one (a tint over the same surface picture). */
+  setMoonRed(red: boolean) {
+    nightMat.uniforms.uMoonTint.value.set(...(red ? [1.9, 0.38, 0.26] : [0.9, 0.97, 1.1]) as [number, number, number]);
+    nightMat.uniforms.uMoonGlow.value.set(...(red ? [1.0, 0.22, 0.15] : [0.45, 0.62, 1.0]) as [number, number, number]);
+  }
+  moonOverride?: THREE.Vector3;
   private mapPicture = false;
   private photoUrl: Record<"day" | "night", string | null> = { day: null, night: null };
   /** Use a sky picture for the day or the night phase (null = the procedural sky). */
@@ -1280,6 +1292,7 @@ export class World {
     u.time.value = this.t;
     u.cloudSpeed.value = 0.00002 * (0.5 + this.windLevel * 2);
     nightMat.uniforms.uMoon.value.set(-Math.cos(a), -Math.sin(a) * 0.85, -0.6).normalize();
+    if (this.moonOverride) nightMat.uniforms.uMoon.value.copy(this.moonOverride).normalize(); // debugging aid: pin the moon somewhere
     nightMat.uniforms.uNight.value = this.night;
     nightMat.uniforms.uTime.value = this.t;
     // The sky turns about a pole tilted 37 degrees from the horizon, one revolution per day.

@@ -610,6 +610,7 @@ let lastSunUp: boolean | null = null;
 const rnd = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
 async function pickSky() {
   const kind = world.sunUp ? "day" : "night";
+  if (kind === "night") world.setMoonRed(rnd(4) === 0); // one night in four has a red moon
   const map = curMap();
   if (map.sky.picture) { world.newScenery(); return; } // the map brings its own sky picture
   const folder = kind === "day" ? "day" : map.sky.nightPhotos;
