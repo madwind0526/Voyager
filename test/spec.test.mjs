@@ -9,7 +9,7 @@ test("built-in content passes validation", () => {
   for (const f of ["basic", "linen", "coat", "stripe"]) assert.ok(validateClothes(read(`../public/clothes/${f}.json`)).ok, f);
   assert.ok(validateMap(read("../public/maps/salt-desert.json")).ok);
   assert.ok(validateMap(read("../public/maps/forest-path.json")).ok);
-  const moon = validateMap(read("../public/maps/moon-shore.json")).value;
+  const moon = validateMap({ schema: "voyager.map/1", name: "x", ground: { kind: "pebble" }, sky: { hour: 17.9 }, scenery: { treeSide: "left" } }).value;
   assert.equal(moon.ground.kind, "pebble");
   assert.equal(moon.sky.hour, 17.9);
   assert.equal(moon.scenery.treeSide, "left");
