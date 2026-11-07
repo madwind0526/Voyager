@@ -156,3 +156,8 @@ textarea.paste { width: 100%; min-height: 180px; resize: vertical; border: 1px s
 
 /* Stand-alone app (no server): hide what needs the PC */
 .standalone [aria-label="Community"] { display: none; }
+
+.srcbtns { display: flex; gap: 10px; }
+.pop button.srcbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 999px; background: var(--soft); font-size: 14px; }
+.pop button.srcbtn svg { width: 18px; height: 18px; }
+.pop .poptitle { text-align: center; font-family: "Orbitron", ui-monospace, monospace; font-weight: 600; font-size: 16px; letter-spacing: 2px; }

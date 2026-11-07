@@ -120,7 +120,7 @@ function refreshModes() {
 refreshModes();
 sound.shuffle = s.shuffle;
 sound.repeat = s.repeat;
-const player = h("div", "player", shuffleBtn, btn(SkipBack, "Previous", () => sound.prev()), musicBtn, btn(SkipForward, "Next", () => sound.next()), repeatBtn);
+const player = h("div", "player", btn(Folder, "Music source", () => openMusicSource()), shuffleBtn, btn(SkipBack, "Previous", () => sound.prev()), musicBtn, btn(SkipForward, "Next", () => sound.next()), repeatBtn);
 const volBox = h("div", "vol", ic(Volume2), h("div", "vslide", vol));
 hud.append(
   stam, clock,
@@ -417,7 +417,24 @@ function openSettings() {
       r.oninput = () => { set(Number(r.value)); save(s); sound.setVolumes(s.musicVol, s.ambientVol); };
       return r;
     };
-    // One line: a text box for URLs (YouTube, mp3, ...), a folder button and a playlist-file button.
+    return [
+      h("div", "row", ic(Globe), tz),
+      h("div", "row", ic(Clock), cyc),
+      h("div", "row", ic(Mountain)),
+      mapGrid(render),
+      h("div", "row", ic(Wind), range(s.ambientVol, (n) => (s.ambientVol = n)), (() => {
+        const b = btn(Bird, "Birds and insects", () => { s.critters = !s.critters; save(s); sound.setCritters(s.critters); b.classList.toggle("on", s.critters); }, "icon");
+        b.classList.toggle("on", s.critters);
+        return b;
+      })()),
+      ...eqSection(),
+    ];
+  });
+}
+
+// Music source pop-up (folder button at the left of the player): one line for URLs, then folder and playlist-file buttons.
+function openMusicSource() {
+  openModal(() => {
     const src = h("input");
     src.type = "text";
     src.placeholder = "https://";
@@ -499,20 +516,12 @@ function openSettings() {
       }
       nativePick(kind);
     };
-    const music = h("div", "row", ic(ListMusic), src, btn(FolderOpen, "Choose folder", () => void choose("dir"), "icon"), btn(ListMusic, "Playlist file", () => void choose("list"), "icon"));
-    return [
-      h("div", "row", ic(Globe), tz),
-      h("div", "row", ic(Clock), cyc),
-      h("div", "row", ic(Mountain)),
-      mapGrid(render),
-      h("div", "row", ic(Wind), range(s.ambientVol, (n) => (s.ambientVol = n)), (() => {
-        const b = btn(Bird, "Birds and insects", () => { s.critters = !s.critters; save(s); sound.setCritters(s.critters); b.classList.toggle("on", s.critters); }, "icon");
-        b.classList.toggle("on", s.critters);
-        return b;
-      })()),
-      music,
-      ...eqSection(),
-    ];
+    const pickBtn = (label: string, icon: any, kind: "dir" | "list") => {
+      const b = h("button", "srcbtn", label, ic(icon));
+      b.onclick = () => void choose(kind);
+      return b;
+    };
+    return [h("div", "poptitle", "Music Selection"), h("div", "row", src), h("div", "srcbtns", pickBtn("Folder", FolderOpen, "dir"), pickBtn("Play List", ListMusic, "list"))];
   });
 }
 
