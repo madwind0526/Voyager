@@ -177,8 +177,8 @@ export class Sound {
     this.ytReady = false;
   }
 
-  /** True when the music currently playing can go through the EQ (everything except YouTube). */
-  get eqAvailable() { return !this.yt; }
+  /** True when the music currently playing can go through the EQ: local files and same-origin audio, not YouTube or remote URLs. */
+  get eqAvailable() { return !this.yt && this.cur === this.eqEl; }
 
   private buildOrder(first?: number) {
     const o = [...this.list.keys()];

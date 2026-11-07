@@ -1,6 +1,6 @@
 import "@fontsource/orbitron/600.css";
 import "./style.css";
-import { Coffee, PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, VolumeX, Wind, X } from "lucide";
+import { Coffee, PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Volume2, VolumeX, Wind, X } from "lucide";
 import { validateMap } from "../shared/spec.mjs";
 import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS, SUPPORT_URL, asset } from "./config";
 import { EQ_LABELS, EQ_PRESETS, Sound } from "./audio";
@@ -403,7 +403,7 @@ function eqSection() {
     row.append(h("div", "eqbar", h("div", "vslide", r), h("small", "", lab)));
   });
   refresh();
-  const note = sound.eqAvailable ? [] : [h("div", "note", ic(Info), "Does not apply to YouTube music")];
+  const note = sound.eqAvailable ? [] : [h("div", "note", ic(Info), "Does not apply to YouTube or web-address music")];
   return [h("div", "row", ic(SlidersVertical), sel), row, ...note];
 }
 
