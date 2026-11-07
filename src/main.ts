@@ -101,7 +101,7 @@ const stamNum = h("span", "", "100");
 const stam = h("div", "stam", ic(Heart), stamNum);
 const clockLocal = h("div", "", "--:--"), clockApp = h("div", "", "--:--");
 const clock = h("div", "clock", clockApp, clockLocal); // line 1 (small): the time in the app's world, line 2 (large): this device's time
-const walkBtn = btn(Footprints, "Walk / sit", () => { if (!forced && sound.musicOn) wantWalk = !wantWalk; }, "main");
+const walkBtn = btn(Footprints, "Walk / sit", () => { if (!forced && sound.musicOn) wantWalk = !wantWalk; });
 const musicBtn = btn(Play, "Play / pause", () => sound.setMusic(!sound.musicOn), "main");
 const vol = h("input");
 vol.type = "range"; vol.min = "0"; vol.max = "1"; vol.step = "0.05"; vol.value = String(s.musicVol);
@@ -330,6 +330,7 @@ function openProfile() {
       ...(BODIES.some((b) => /\.fbx$/i.test(b.file)) ? [h("div", "row", h("span", "", "Animation"), animation)] : []), // walk clips only matter for Mixamo (FBX) characters
       h("div", "pick", ic(PersonStanding), row),
       coffeeBtn(),
+      h("div", "credit", "Voyager by Madwind"),
     ];
   });
 }
