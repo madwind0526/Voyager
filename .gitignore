@@ -26,6 +26,7 @@ android/local.properties
 android/capacitor-cordova-android-plugins/
 android/app/src/main/assets/public/
 *.apk
+!store/Voyager.apk
 
 # generated drafts and store material
 store/gen/

@@ -21,6 +21,10 @@ Get `Voyager Setup x.y.z.exe` from the [Releases](https://github.com/madwind0526
 
 To build the installer yourself: `npm run desktop:build` (output in `release/`, bundled web files in `desktop-www/`). Characters under CC BY-NC (`person-f.glb`) and Mixamo files are left out of it.
 
+## Download (Android)
+
+[`store/Voyager.apk`](store/Voyager.apk) is a debug-signed build: allow installing from unknown sources on the phone, then open the file. It runs stand-alone (no server).
+
 ## Install
 
 Requirements: Node.js 20 or newer (tested on 24), Windows, macOS or Linux.
