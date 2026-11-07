@@ -2,7 +2,7 @@
 
 ## Current Wave
 
-- **Wave:** 16
+- **Wave:** 17
 - **Status:** Ready
 - **Cache Status:** CLEAN
 - **Last Checkpoint:** Photo trees/mountains, horizon.fog, Forest Path built-in map, store assets, APK rebuilt
@@ -27,3 +27,4 @@
 | 14 | Photo trees and mountains, per-map fog, Forest Path, store assets, APK | Done |
 | 15 | Moon Shore map: pebble ground, sky.picture/hour, treeSide | Done |
 | 16 | Grassland mountain fixes; Windows installer (Electron) and GitHub release v0.1.0 | Done |
+| 17 | GitHub Pages web version, music pop-up, UI tweaks, mute toggle, store screenshots | Done |
