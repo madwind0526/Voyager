@@ -1,6 +1,6 @@
 import "@fontsource/orbitron/600.css";
 import "./style.css";
-import { Coffee, PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, Wind, X } from "lucide";
+import { Coffee, PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, VolumeX, Wind, X } from "lucide";
 import { validateMap } from "../shared/spec.mjs";
 import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS, SUPPORT_URL, asset } from "./config";
 import { EQ_LABELS, EQ_PRESETS, Sound } from "./audio";
@@ -64,7 +64,7 @@ function apply() {
   world.setMap(m);
   if (leavesPrints() !== lastPrints) { lastPrints = leavesPrints(); applyAnimation(); } // moving onto or off such a ground changes which animations are allowed
   sound.setAmbience(m.ambience);
-  sound.setVolumes(s.musicVol, s.ambientVol);
+  applyVolumes();
   sound.setEq(s.eq, true);
   sound.setCritters(s.critters);
 }
@@ -106,7 +106,7 @@ const musicBtn = btn(Play, "Play / pause", () => sound.setMusic(!sound.musicOn),
 const vol = h("input");
 vol.type = "range"; vol.min = "0"; vol.max = "1"; vol.step = "0.05"; vol.value = String(s.musicVol);
 vol.setAttribute("aria-label", "Volume");
-vol.oninput = () => { s.musicVol = Number(vol.value); save(s); sound.setVolumes(s.musicVol, s.ambientVol); };
+vol.oninput = () => { s.musicVol = Number(vol.value); muted = false; save(s); applyVolumes(); };
 // Shuffle toggles on/off; repeat cycles off -> one track -> all tracks.
 const shuffleBtn = btn(Shuffle, "Shuffle", () => { s.shuffle = !s.shuffle; save(s); sound.setShuffle(s.shuffle); refreshModes(); });
 const repeatBtn = btn(Repeat, "Repeat", () => { s.repeat = s.repeat === "off" ? "one" : s.repeat === "one" ? "all" : "off"; save(s); sound.setRepeat(s.repeat); refreshModes(); });
@@ -121,7 +121,15 @@ refreshModes();
 sound.shuffle = s.shuffle;
 sound.repeat = s.repeat;
 const player = h("div", "player", btn(Folder, "Music source", () => openMusicSource()), shuffleBtn, btn(SkipBack, "Previous", () => sound.prev()), musicBtn, btn(SkipForward, "Next", () => sound.next()), repeatBtn);
-const volBox = h("div", "vol", ic(Volume2), h("div", "vslide", vol));
+let muted = false;
+const muteBtn = btn(Volume2, "Mute", () => { muted = !muted; applyVolumes(); });
+function applyVolumes() {
+  sound.setVolumes(muted ? 0 : s.musicVol, muted ? 0 : s.ambientVol);
+  muteBtn.replaceChildren(ic(muted ? VolumeX : Volume2));
+  muteBtn.title = muteBtn.ariaLabel = muted ? "Sound off" : "Sound on";
+  vol.classList.toggle("dim", muted);
+}
+const volBox = h("div", "vol", muteBtn, h("div", "vslide", vol));
 hud.append(
   stam, clock,
   player,
@@ -415,7 +423,7 @@ function openSettings() {
     }
     const range = (v: number, set: (n: number) => void) => {
       const r = h("input"); r.type = "range"; r.min = "0"; r.max = "1"; r.step = "0.05"; r.value = String(v);
-      r.oninput = () => { set(Number(r.value)); save(s); sound.setVolumes(s.musicVol, s.ambientVol); };
+      r.oninput = () => { set(Number(r.value)); save(s); applyVolumes(); };
       return r;
     };
     return [

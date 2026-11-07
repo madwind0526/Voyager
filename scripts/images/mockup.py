@@ -57,6 +57,6 @@ for key, ref, top, bottom, head, sub in ITEMS:
     mask = Image.new("L", (sw, sh), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, sw, sh), 16, fill=255)
     bg.paste(shot, (px0 + bez, py0 + bez), mask)
-    d.rounded_rectangle((W / 2 - 40, py0 + bez + 10, W / 2 + 40, py0 + bez + 26), 8, fill=(14, 14, 18)) # camera pill
+#     d.rounded_rectangle((W / 2 - 40, py0 + bez + 10, W / 2 + 40, py0 + bez + 26), 8, fill=(14, 14, 18)) # camera pill
     bg.save(f"store/promo/real-{key}-720x1280.png")
     print("wrote", key)

@@ -162,3 +162,5 @@ textarea.paste { width: 100%; min-height: 180px; resize: vertical; border: 1px s
 .pop button.srcbtn svg { width: 18px; height: 18px; }
 .pop .poptitle { text-align: center; font-family: "Orbitron", ui-monospace, monospace; font-weight: 600; font-size: 16px; letter-spacing: 2px; }
 .pop .credit { text-align: center; font-family: "Orbitron", ui-monospace, monospace; font-size: 12px; letter-spacing: 2px; opacity: 0.6; }
+.vol > button { width: 34px; height: 24px; }
+.vslide input.dim { opacity: 0.4; }
