@@ -100,7 +100,7 @@ let stamina = 100;
 const stamNum = h("span", "", "100");
 const stam = h("div", "stam", ic(Heart), stamNum);
 const clockLocal = h("div", "", "--:--"), clockApp = h("div", "", "--:--");
-const clock = h("div", "clock", clockLocal, clockApp); // line 1: this device's time, line 2: the time in the app's world
+const clock = h("div", "clock", clockApp, clockLocal); // line 1 (small): the time in the app's world, line 2 (large): this device's time
 const walkBtn = btn(Footprints, "Walk / sit", () => { if (!forced && sound.musicOn) wantWalk = !wantWalk; }, "main");
 const musicBtn = btn(Play, "Play / pause", () => sound.setMusic(!sound.musicOn), "main");
 const vol = h("input");
