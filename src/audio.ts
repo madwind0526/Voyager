@@ -1,3 +1,4 @@
+import { asset } from "./config";
 // Music backends: an <audio> element for files/URLs (optionally through the EQ), or the YouTube
 // IFrame player for YouTube links (its audio cannot be routed through Web Audio, so no EQ there).
 // Ambience is made of real recordings (see public/sounds/CREDITS.txt): crickets at night, forest birds
@@ -311,10 +312,10 @@ export class Sound {
         console.warn("ambience failed", file, e);
       }
     };
-    void load("crickets", "/sounds/crickets.mp3");
-    void load("forest", "/sounds/forest.mp3");
-    void load("wind", "/sounds/wind.ogg");
-    void load("wind2", "/sounds/wind2.ogg");
+    void load("crickets", asset("/sounds/crickets.mp3"));
+    void load("forest", asset("/sounds/forest.mp3"));
+    void load("wind", asset("/sounds/wind.ogg"));
+    void load("wind2", asset("/sounds/wind2.ogg"));
     setInterval(() => {
       this.gust = [0.15 + Math.random() * 0.5, 0.15 + Math.random() * 0.5]; // a new random gust every few seconds
       this.applyAmbient();

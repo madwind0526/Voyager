@@ -25,6 +25,10 @@ button:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 2px; 
 .stam svg { width: 16px; height: 16px; flex: none; }
 .stam.empty { color: var(--danger); }
 .clock { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); font-size: 24px; letter-spacing: 2px; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35); pointer-events: none !important; }
+.clock { text-align: center; line-height: 1.15; }
+.clock > div:first-child { font-size: 13px; letter-spacing: 1px; opacity: 0.7; }
+.pop button.coffee { display: flex; align-items: center; justify-content: center; gap: 8px; align-self: center; margin-top: 4px; padding: 8px 16px; border-radius: 999px; background: var(--soft); font-size: 14px; }
+.pop button.coffee svg { width: 18px; height: 18px; }
 .corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .corner.tr { top: calc(14px + env(safe-area-inset-top)); right: 14px; }
 .corner.bl { bottom: calc(18px + env(safe-area-inset-bottom)); left: 14px; }

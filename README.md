@@ -11,6 +11,10 @@ A quiet, mobile-first walking app. A person, seen from behind, walks across a wi
 
 Tech: TypeScript, Vite, three.js, Web Audio, a small Node HTTP server. No UI framework.
 
+## Play in the browser
+
+https://madwind0526.github.io/Voyager/ (built by `.github/workflows/pages.yml` on every push to `main`; in the repository settings, Pages > Source must be "GitHub Actions"). On a phone the Start button goes full screen; in a desktop browser it opens a 650x1200 window. The web version has no server, so settings stay in the browser and the PC-only features are hidden.
+
 ## Download (Windows, no setup)
 
 Get `Voyager Setup x.y.z.exe` from the [Releases](https://github.com/madwind0526/Voyager/releases) page and run it; no Node.js or other tools are needed. The installer is not code-signed, so Windows SmartScreen may warn: choose "More info", then "Run anyway". Settings and community files are kept in `%APPDATA%\Voyager`.
@@ -55,7 +59,7 @@ To try it on a phone on the same network, set `HOST=0.0.0.0` before starting the
 
 1. Press the play button on the start screen.
 2. Drag the screen to turn; the person walks where you face. The footprints button (bottom right) toggles walk and sit. When stamina (top left) reaches 0 the person must sit until it is full again.
-3. Icons: profile (top right: your name and character), coffee and settings (bottom left), volume and walk/sit (bottom right), music controls (bottom center).
+3. Icons: profile (top right: your name and character), settings (bottom left), volume and walk/sit (bottom right), music controls (bottom center).
 4. **Settings**: time zone, day length, map cards, wind volume and the bird toggle, music source (URL, folder, playlist file), equalizer.
 5. **Add a map**: press the dashed **+** card in the map list and choose a `.json` map file. The app takes a picture of the map for its card. The trash icon removes a map from the list; the file stays in `public/maps/added/` (the list itself lives in the browser, so if its data is cleared, add the files again with **+**).
 6. **Profile**: name and character. For Mixamo characters the walk animation can be chosen too, with **Random** picking a new one each time the person rests and gets up.
@@ -76,7 +80,7 @@ Set `sdk.dir` in `android/local.properties` (not committed) and `JAVA_HOME` to A
 
 ## Buy me a coffee
 
-A coffee button sits above Settings. It opens the page set in `src/config.ts` (`SUPPORT_URL`). To make your own page: sign up at https://buymeacoffee.com, create your page (the address looks like `https://buymeacoffee.com/your-name`), then put that address into `SUPPORT_URL` and rebuild.
+The coffee button sits at the bottom of the profile pop-up. It opens the page set in `src/config.ts` (`SUPPORT_URL`). To make your own page: sign up at https://buymeacoffee.com, create your page (the address looks like `https://buymeacoffee.com/your-name`), then put that address into `SUPPORT_URL` and rebuild.
 
 ## Make your own map
 

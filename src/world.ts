@@ -6,7 +6,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { WALK_SPEED } from "./config";
+import { WALK_SPEED, asset } from "./config";
 import { Person, type Motion } from "./avatar";
 import { BODIES } from "./bodies";
 import type { ClothesSpec, MapSpec } from "./types";
@@ -35,12 +35,12 @@ vec3 skyPhoto(sampler2D tex, vec3 d, float aspect, float t) {
 
 // Night sky: NASA's deep star map (public domain, see public/sounds/CREDITS.txt) plus the moon, drawn
 // additively over the physical sky (which is black at night). The map turns slowly with the hour.
-const starMap = new THREE.TextureLoader().load("/sky/starmap.jpg");
+const starMap = new THREE.TextureLoader().load(asset("/sky/starmap.jpg"));
 starMap.colorSpace = THREE.SRGBColorSpace;
 starMap.generateMipmaps = true; // blurred levels give the diffuse Milky Way glow
 starMap.minFilter = THREE.LinearMipmapLinearFilter;
 starMap.wrapS = THREE.RepeatWrapping;
-const moonMap = new THREE.TextureLoader().load("/sky/moon.jpg");
+const moonMap = new THREE.TextureLoader().load(asset("/sky/moon.jpg"));
 moonMap.colorSpace = THREE.SRGBColorSpace;
 const nightMat = new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending,
@@ -815,7 +815,7 @@ export class World {
         this.scene.add(mesh);
         this.photoTrees.push(mesh);
         this.photoTreeInfo.push({ species, mesh, dens });
-        new THREE.TextureLoader().load(`/trees/${file}.webp`, (tex) => {
+        new THREE.TextureLoader().load(asset(`/trees/${file}.webp`), (tex) => {
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.anisotropy = 4;
           mat.uniforms.uTex.value = tex;
@@ -885,7 +885,7 @@ export class World {
         mesh.userData.R = R;
         mesh.userData.tall = tall;
         grp.add(mesh);
-        new THREE.TextureLoader().load(`/mountains/${name}-${part}.webp`, (tex) => {
+        new THREE.TextureLoader().load(asset(`/mountains/${name}-${part}.webp`), (tex) => {
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.anisotropy = 4;
           mat.uniforms.uTex.value = tex;
@@ -1051,7 +1051,7 @@ export class World {
     this.prints = [];
     this.grassWind.value = 0.35 + m.ambience.wind * 0.9;
     if (kind === 4 && !this.gu.uPebble.value) {
-      new THREE.TextureLoader().load("/textures/pebbles.jpg", (tex) => {
+      new THREE.TextureLoader().load(asset("/textures/pebbles.jpg"), (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping;
         tex.anisotropy = 8;
@@ -1120,7 +1120,7 @@ export class World {
       else this.dayLoaded = false;
       return;
     }
-    new THREE.TextureLoader().load(url, (tex) => {
+    new THREE.TextureLoader().load(asset(url), (tex) => {
       if (this.photoUrl[kind] !== url) return; // a newer pick arrived meanwhile
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;

@@ -1,3 +1,4 @@
+import { asset } from "./config";
 // The people the player can be. Add a rigged humanoid GLB (Mixamo or Ready Player Me bone names) to
 // public/models/people; files found there are offered automatically (see registerPeople).
 export interface Outfit { top: string[]; bottom: string[] } // material names that make up the top and the trousers
@@ -8,13 +9,13 @@ export const DEFAULT_OUTFIT: Outfit = { top: ["Shirt", "Top", "Jacket", "Clothes
 const person = (file: string): Body => ({
   id: "x:" + file,
   name: file.replace(/\.(glb|fbx)$/i, "").replace(/^[mf]_/i, "").replace(/[_-]+/g, " "),
-  file: "/models/people/" + encodeURIComponent(file),
+  file: asset("/models/people/") + encodeURIComponent(file),
 });
 
 // Bundled characters, shown in this order; the first is the default.
 const builtInBodies: Body[] = [
   person("m_Casual.glb"), person("f_Casual.glb"),
-  { id: "rpm-f", name: "Brunette", file: "/models/person-f.glb" }, // Ready Player Me, realistic
+  { id: "rpm-f", name: "Brunette", file: asset("/models/person-f.glb") }, // Ready Player Me, realistic
   person("m_Suit.glb"), person("f_Suit.glb"),
   person("m_Cowboy.glb"), person("f_Kimono.glb"),
   person("m_Viking.glb"), person("f_Witch.glb"),

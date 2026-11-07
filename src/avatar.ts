@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { asset } from "./config";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { DEFAULT_OUTFIT, type Outfit } from "./bodies";
@@ -16,7 +17,7 @@ const animationPromises = new Map<string, Promise<THREE.AnimationClip | undefine
 function loadAnimation(file: string) {
   let clip = animationPromises.get(file);
   if (!clip) {
-    const url = "/models/animations/" + file.split("/").map(encodeURIComponent).join("/");
+    const url = asset("/models/animations/") + file.split("/").map(encodeURIComponent).join("/");
     clip = new FBXLoader().loadAsync(url)
       .then((fbx) => fbx.animations.find((animation) => animation.tracks.length > 0))
       .catch(() => undefined);

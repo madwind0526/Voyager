@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 
 // Ports are allocated in C:\Claude\PORTS.md (frontend 5186, backend 4315).
 export default defineConfig({
+  base: process.env.VOYAGER_BASE ?? "/", // "/Voyager/" for GitHub Pages
   server: {
     host: "127.0.0.1",
     port: 5186,

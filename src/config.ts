@@ -9,3 +9,6 @@ export const WALK_SPEED = 1.4; // meters per second
 // "Buy me a coffee" page opened by the coffee button above Settings. Replace with your own page, for example
 // "https://buymeacoffee.com/your-name" (see README, "Buy me a coffee").
 export const SUPPORT_URL = "https://buymeacoffee.com/madwind052i";
+
+// Prefix for files under public/ (the web version is served from a sub-path such as /Voyager/).
+export const asset = (p: string) => import.meta.env.BASE_URL + p.replace(/^\//, "");

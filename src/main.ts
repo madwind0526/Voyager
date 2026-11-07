@@ -2,7 +2,7 @@ import "@fontsource/orbitron/600.css";
 import "./style.css";
 import { Coffee, PersonStanding, ArrowUp, Armchair, Check, Folder, Info, Music, SlidersVertical, Clock, Download, FolderOpen, Footprints, Bird, Pause, Plus, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Globe, Heart, ListMusic, Mountain, Play, Settings as Cog, Trash2, Upload, User, Users, Volume2, Wind, X } from "lucide";
 import { validateMap } from "../shared/spec.mjs";
-import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS, SUPPORT_URL } from "./config";
+import { DEFAULT_TRACK, DRAIN_SECONDS, REFILL_SECONDS, SUPPORT_URL, asset } from "./config";
 import { EQ_LABELS, EQ_PRESETS, Sound } from "./audio";
 import { load, normalize, restore, save } from "./state";
 import { dayHour } from "./time";
@@ -44,12 +44,12 @@ const allMaps = () => [...bMaps, ...Object.values(s.maps)];
 const curMap = () => allMaps().find((x) => x.id === s.mapId) ?? bMaps[0];
 
 async function loadBuiltins() {
-  const get = async (p: string) => (await fetch(p)).json();
+  const get = async (p: string) => (await fetch(asset(p))).json();
   // Run built-ins through the validators so defaults are filled in, keeping their ids.
   const norm = async (p: string, v: (x: unknown) => any) => {
     const raw = await get(p), r = v(raw);
     if (!r.ok) throw new Error(`${p}: ${r.error}`);
-    return { ...r.value, id: raw.id, ...(raw.thumb ? { thumb: raw.thumb } : {}) };
+    return { ...r.value, id: raw.id, ...(raw.thumb ? { thumb: asset(raw.thumb) } : {}) };
   };
   // One missing or broken file must not stop the app: skip it, and fall back to a plain salt map if none loads.
   const done = await Promise.allSettled(["salt-desert", "grassland", "snow-north", "forest-path"].map((n) => norm(`/maps/${n}.json`, validateMap)));
@@ -99,7 +99,8 @@ let stamina = 100;
 
 const stamNum = h("span", "", "100");
 const stam = h("div", "stam", ic(Heart), stamNum);
-const clock = h("div", "clock", "--:--");
+const clockLocal = h("div", "", "--:--"), clockApp = h("div", "", "--:--");
+const clock = h("div", "clock", clockLocal, clockApp); // line 1: this device's time, line 2: the time in the app's world
 const walkBtn = btn(Footprints, "Walk / sit", () => { if (!forced && sound.musicOn) wantWalk = !wantWalk; }, "main");
 const musicBtn = btn(Play, "Play / pause", () => sound.setMusic(!sound.musicOn), "main");
 const vol = h("input");
@@ -125,7 +126,7 @@ hud.append(
   stam, clock,
   player,
   h("div", "corner tr", btn(User, "Profile", () => openProfile())),
-  h("div", "corner bl", btn(Coffee, "Buy me a coffee", () => window.open(SUPPORT_URL, "_blank", "noopener")), btn(Cog, "Settings", () => openSettings())),
+  h("div", "corner bl", btn(Cog, "Settings", () => openSettings())),
   h("div", "corner br", volBox, walkBtn),
 );
 
@@ -158,6 +159,11 @@ function refreshButtons() {
 }
 
 const startLayer = h("div", "start", btn(Play, "Start", async () => {
+  // Web version in a desktop browser tab: open the player in a phone-shaped window first (a script can only size a window it opens).
+  if (location.hostname.endsWith("github.io") && window.name !== "voyager" && !matchMedia("(pointer: coarse)").matches) {
+    const hh = Math.min(1200, screen.availHeight - 40);
+    if (window.open(location.href, "voyager", `popup,width=650,height=${hh}`)) return;
+  }
   startLayer.remove();
   started = true;
   sound.start();
@@ -284,6 +290,12 @@ function mapGrid(render: () => void) {
   return grid;
 }
 
+function coffeeBtn() {
+  const b = h("button", "coffee", ic(Coffee), "Buy me a coffee");
+  b.onclick = () => window.open(SUPPORT_URL, "_blank", "noopener");
+  return b;
+}
+
 // The people to pick from: each picture is that person.
 function openProfile() {
   openModal((render) => {
@@ -317,6 +329,7 @@ function openProfile() {
       h("div", "row", ic(User), name),
       ...(BODIES.some((b) => /\.fbx$/i.test(b.file)) ? [h("div", "row", h("span", "", "Animation"), animation)] : []), // walk clips only matter for Mixamo (FBX) characters
       h("div", "pick", ic(PersonStanding), row),
+      coffeeBtn(),
     ];
   });
 }
@@ -578,7 +591,8 @@ function tick(now: number) {
   if (world.sunUp !== lastSunUp) { lastSunUp = world.sunUp; void pickSky(); } // dusk or dawn: a new random picture
   sound.setNight(world.night);
   const text = `${String(Math.floor(hr)).padStart(2, "0")}:${String(Math.floor((hr % 1) * 60)).padStart(2, "0")}`;
-  if (text !== clockText) clock.textContent = clockText = text;
+  const d = new Date(), local = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (text + local !== clockText) { clockApp.textContent = text; clockLocal.textContent = local; clockText = text + local; }
   refreshButtons();
   requestAnimationFrame(tick);
 }
@@ -596,7 +610,7 @@ async function listing<T>(api: string, fromIndex: (index: any) => T): Promise<T>
     if (r.ok && /json/.test(r.headers.get("content-type") ?? "")) return await r.json();
   } catch { /* no server */ }
   document.documentElement.classList.add("standalone");
-  appIndex ??= fetch("/app-index.json").then((r) => r.json());
+  appIndex ??= fetch(asset("/app-index.json")).then((r) => r.json());
   return fromIndex(await appIndex);
 }
 async function skyList(folder: string) {
@@ -643,7 +657,7 @@ loadBuiltins().then(async () => {
   let peopleFiles: string[] = [];
   try { peopleFiles = await listing("/api/people", (i) => i.people); registerPeople(peopleFiles); } catch { /* no server: built-in people only */ }
   const selected = BODIES.find((b) => b.id === s.body);
-  const selectedFile = selected?.file.startsWith("/models/people/") ? decodeURIComponent(selected.file.slice("/models/people/".length)) : undefined;
+  const selectedFile = selected?.file.startsWith(asset("/models/people/")) ? decodeURIComponent(selected.file.slice(asset("/models/people/").length)) : undefined;
   if (!selected || (selectedFile && !peopleFiles.includes(selectedFile))) {
     s.body = peopleFiles.length ? `x:${peopleFiles[0]}` : "rpm-f";
     save(s);
