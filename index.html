@@ -7,6 +7,16 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon.svg" />
   <title>Voyager</title>
+  <!-- Cloudflare Web Analytics: only on the public web version, not in the phone app, the desktop app or local runs -->
+  <script>
+    if (location.hostname.endsWith("github.io")) {
+      const s = document.createElement("script");
+      s.type = "module";
+      s.src = "https://static.cloudflareinsights.com/beacon.min.js";
+      s.dataset.cfBeacon = '{"token": "10c2916756cf43c2a5cbf0a31fb116cb"}';
+      document.head.append(s);
+    }
+  </script>
 </head>
 <body>
   <div id="app">
