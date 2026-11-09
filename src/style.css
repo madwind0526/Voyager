@@ -39,12 +39,12 @@ button:focus-visible { outline: 1.5px solid var(--accent); outline-offset: 2px; 
 .corner > button.main { width: 62px; height: 62px; }
 .corner > button.main svg { width: 28px; height: 28px; }
 .corner button.off { opacity: 0.35; }
-.player { position: absolute; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-radius: 32px; }
-.player button { width: 32px; height: 32px; border-radius: 50%; }
-.player button svg { width: 17px; height: 17px; }
+.player { position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); height: 46px; transform: translateX(-50%); display: flex; align-items: center; gap: 0; padding: 0 4px; }
+.player button { width: 28px; height: 28px; border-radius: 50%; }
+.player button svg { width: 17px; height: 17px; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
 .player button.main { width: 40px; height: 40px; background: transparent; }
 .player button.main svg { width: 21px; height: 21px; }
-.player button.dim { opacity: 0.38; }
+.player button.dim { opacity: 0.6; }
 .vol { width: 46px; padding: 12px 0 8px; border-radius: 23px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .vol svg { width: 18px; height: 18px; opacity: 0.8; }
 .vslide { position: relative; width: 28px; height: 110px; }
