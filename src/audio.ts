@@ -139,8 +139,7 @@ export class Sound {
       const host = this.ytHost;
       this.yt = new YT.Player(inner, {
         width: 200, height: 200,
-        // Omit videoId entirely in playlist mode: the API throws "Invalid video id" on an undefined one.
-        ...(list ? {} : { videoId: video }),
+        ...(video ? { videoId: video } : {}),
         playerVars: { playsinline: 1, ...(list ? { listType: "playlist", list } : { loop: 1, playlist: video }) },
         events: {
           onReady: (e: any) => {

@@ -2,10 +2,10 @@
 
 ## Current Wave
 
-- **Wave:** 17
+- **Wave:** 18
 - **Status:** Ready
 - **Cache Status:** CLEAN
-- **Last Checkpoint:** Photo trees/mountains, horizon.fog, Forest Path built-in map, store assets, APK rebuilt
+- **Last Checkpoint:** Default YouTube playlist IFrame fixed and browser-verified 2026-11-10
 
 ## Wave History
 
@@ -28,3 +28,4 @@
 | 15 | Moon Shore map: pebble ground, sky.picture/hour, treeSide | Done |
 | 16 | Grassland mountain fixes; Windows installer (Electron) and GitHub release v0.1.0 | Done |
 | 17 | GitHub Pages web version, music pop-up, UI tweaks, mute toggle, store screenshots | Done |
+| 18 | Check and fix intermittent default YouTube playlist loading | Done |

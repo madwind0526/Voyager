@@ -181,3 +181,9 @@ When walk-only filename matching is used, dance FBXs such as `Gangnam Style` and
 - Cause: the app width was constrained by its parent/container sizing and the root used percentage width.
 - Fix: pin `#app` to the viewport with `position: fixed; inset: 0; width: 100vw; height: 100dvh;`. The existing resize listener updates renderer size and camera aspect.
 - Verified app and canvas fill at 390×844, 500×969, and 1280×900. Settings open/close and Walk/Sit toggle still work.
+
+## 2026-11-10 — Default YouTube playlist embed loads inconsistently
+
+- The hard-coded watch URL has `v=1t39vq3LdRs&list=PLCqwmfitbQCY`. When `src/audio.ts` omitted `videoId` in playlist mode, one fresh browser session loaded 163 tracks and Next advanced, while another returned error 2 (`api.invalidparam`), no playlist, and player state -1 even though the app's music switch was on.
+- The matching Paradise embed showed the same variation. In a failed Paradise session, adding the watch video's `videoId` to the same `list` loaded and played 163 tracks. The playlist URL is valid; do not infer that error 2 means the whole list is invalid. The precise reason YouTube sometimes accepts the list-only embed remains unknown.
+- Fix: pass the watch video's `videoId` alongside `list` when both are present. In a fresh browser session Voyager loaded 163 tracks, advanced to another song, wrapped from the last song to the first under repeat all, and paused/resumed. A single-video URL still played. Electron and Android were not checked.
