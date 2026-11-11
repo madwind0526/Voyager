@@ -157,6 +157,9 @@ textarea.paste { width: 100%; min-height: 180px; resize: vertical; border: 1px s
 /* Stand-alone app (no server): hide what needs the PC */
 .standalone [aria-label="Community"] { display: none; }
 
+.row.end button.defurl { width: auto; height: 34px; padding: 0 14px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.clock > .track { max-width: 78vw; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: system-ui, sans-serif; font-size: 12px; font-weight: 400; letter-spacing: 0; opacity: 0.8; }
+.clock > .track:empty { display: none; }
 .srcbtns { display: flex; gap: 10px; }
 .pop button.srcbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 999px; background: var(--soft); font-size: 14px; }
 .pop button.srcbtn svg { width: 18px; height: 18px; }

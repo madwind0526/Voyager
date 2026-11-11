@@ -72,9 +72,10 @@ function apply() {
 // Local picks (folder/m3u) last for this session only: browsers cannot keep file handles in localStorage.
 let local: string[] = [];
 let localLabel = "";
+let localNames: string[] = [];
 // Source priority: files picked on this device (session only) > folder/list picked in the explorer > URLs > default.
 async function applyMusic() {
-  if (local.length) return sound.setPlaylist(local, DEFAULT_TRACK);
+  if (local.length) return sound.setPlaylist(local, DEFAULT_TRACK, localNames);
   if (s.musicPath.startsWith("phone:")) {
     try {
       const { files } = await FolderMusic.listAudio({ path: s.musicPath.slice(6) });
@@ -100,7 +101,9 @@ let stamina = 100;
 const stamNum = h("span", "", "100");
 const stam = h("div", "stam", ic(Heart), stamNum);
 const clockLocal = h("div", "", "--:--"), clockApp = h("div", "", "--:--");
-const clock = h("div", "clock", clockApp, clockLocal); // line 1 (small): the time in the app's world, line 2 (large): this device's time
+const clockTrack = h("div", "track");
+const clock = h("div", "clock", clockApp, clockLocal, clockTrack);
+sound.onTitle = (t) => { clockTrack.textContent = t; }; // current song under the time // line 1 (small): the time in the app's world, line 2 (large): this device's time
 const walkBtn = btn(Footprints, "Walk / sit", () => { if (!forced && sound.musicOn) wantWalk = !wantWalk; });
 const musicBtn = btn(Play, "Play / pause", () => sound.setMusic(!sound.musicOn), "main");
 const vol = h("input");
@@ -188,7 +191,7 @@ const startLayer = h("div", "start", btn(Play, "Start", async () => {
 hud.append(startLayer);
 
 // ---------- pop-ups ----------
-function openModal(build: (render: () => void) => (Node | string)[]) {
+function openModal(build: (render: () => void) => (Node | string)[], lead?: (close: () => void) => Node) {
   const back = h("div", "modal");
   const close = () => { back.remove(); removeEventListener("keydown", onKey); };
   const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && hud.lastElementChild === back) close(); }; // only the top pop-up closes
@@ -196,7 +199,7 @@ function openModal(build: (render: () => void) => (Node | string)[]) {
   back.setAttribute("role", "dialog");
   back.setAttribute("aria-modal", "true");
   addEventListener("keydown", onKey);
-  const render = () => back.replaceChildren(h("div", "pop", h("div", "row end", btn(X, "Close", close)), ...build(render)));
+  const render = () => back.replaceChildren(h("div", "pop", h("div", "row end", ...(lead ? [lead(close)] : []), btn(X, "Close", close)), ...build(render)));
   hud.append(back);
   render();
 }
@@ -441,6 +444,13 @@ function openSettings() {
   });
 }
 
+// "Default URL" button of the music pop-up: back to the built-in playlist, then close.
+function defaultUrlBtn(close: () => void) {
+  const b = h("button", "defurl", "Default URL");
+  b.onclick = () => { local.forEach(URL.revokeObjectURL); local = []; s.musicPath = ""; s.playlist = [DEFAULT_TRACK]; save(s); void applyMusic(); close(); };
+  return b;
+}
+
 // Music source pop-up (folder button at the left of the player): one line for URLs, then folder and playlist-file buttons.
 function openMusicSource() {
   openModal(() => {
@@ -480,6 +490,7 @@ function openMusicSource() {
           if (!files.length) return alert("No music files found");
           local.forEach(URL.revokeObjectURL);
           local = files.map((x) => URL.createObjectURL(x));
+          localNames = files.map((x) => x.name.replace(/\.[^.]+$/, ""));
           localLabel = `${files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : files[0].name} · ${files.length}`;
         } else {
           const urls = (await f.files[0].text()).split(/\r?\n/).map((x) => x.trim()).filter((x) => /^https?:\/\//i.test(x));
@@ -530,8 +541,8 @@ function openMusicSource() {
       b.onclick = () => void choose(kind);
       return b;
     };
-    return [h("div", "poptitle", "Music Selection"), h("div", "row", src), h("div", "srcbtns", pickBtn("Folder", FolderOpen, "dir"), pickBtn("Play List", ListMusic, "list"))];
-  });
+    return [h("div", "poptitle", "Music Selection"), h("div", "row", src), h("div", "srcbtns", pickBtn("Folder", FolderOpen, "dir"), pickBtn("Playlist", ListMusic, "list"))];
+  }, defaultUrlBtn);
 }
 
 // On hold: the community button is not shown for now (the server API stays).

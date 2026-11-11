@@ -42,6 +42,11 @@ function loadYtApi(): Promise<any> {
 
 type Layer = "crickets" | "forest" | "wind" | "wind2";
 
+/** File name without folder or extension, from a URL. */
+function fileTitle(url: string): string {
+  try { return decodeURIComponent(new URL(url, location.href).pathname.split("/").pop() ?? "").replace(/\.[^.]+$/, ""); } catch { return ""; }
+}
+
 export class Sound {
   // Two elements: `eqEl` is wired into the EQ graph (only safe for same-origin/blob audio, since a
   // cross-origin source without CORS would be muted there); `plainEl` plays everything else directly.
@@ -70,6 +75,9 @@ export class Sound {
   private vol = 0.6;
   private musicVol = 0.6;
   musicOn = false;
+  /** Called with the name of the track that starts playing (empty when unknown). */
+  onTitle: (title: string) => void = () => {};
+  private names: string[] = [];
 
   constructor() {
     for (const el of [this.plainEl, this.eqEl]) {
@@ -86,7 +94,9 @@ export class Sound {
   }
 
   // A YouTube link takes over the whole playlist; everything else goes to the <audio> elements.
-  setPlaylist(urls: string[], fallback: string) {
+  setPlaylist(urls: string[], fallback: string, names: string[] = []) {
+    this.names = names;
+    this.onTitle("");
     const given = urls.map((u) => u.trim()).filter(Boolean);
     const clean = given.length ? given : [fallback];
     const yt = clean.find(isYouTube);
@@ -112,6 +122,7 @@ export class Sound {
 
   private playCurrent() {
     const url = this.list[this.order[this.pos] ?? 0];
+    this.onTitle(this.names[this.order[this.pos] ?? 0] ?? fileTitle(url));
     let local = url.startsWith("blob:");
     if (!local) try { local = new URL(url, location.href).origin === location.origin; } catch { if (++this.errors <= this.list.length) this.advance(true); return; } // an unparsable address: skip it
     // The EQ graph needs the audio context (created on the first user gesture).
@@ -157,7 +168,7 @@ export class Sound {
           // Unplayable (e.g. embedding disabled) videos are skipped.
           onError: () => this.yt?.nextVideo?.(),
           onStateChange: (e: any) => {
-            if (e.data === 1) this.ytIdx = e.target.getPlaylistIndex?.() ?? 0;
+            if (e.data === 1) { this.ytIdx = e.target.getPlaylistIndex?.() ?? 0; this.onTitle(e.target.getVideoData?.()?.title ?? ""); }
             // Repeat one: when a video ends, start the same one again.
             else if (e.data === 0 && this.repeat === "one") list ? e.target.playVideoAt?.(this.ytIdx) : (e.target.seekTo(0), e.target.playVideo());
           },
