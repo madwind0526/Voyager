@@ -1,6 +1,6 @@
 # Voyager
 
-A quiet, mobile-first walking app. A person, seen from behind, walks across a wide, flat world while the sky, sun, moon, clouds, wind and sounds follow the time of day. Walk until the stamina runs out, then sit and rest. Music always plays; turn it off and the person sits down.
+A mobile-first **music player** with a walking-scenery visualizer. Play a YouTube playlist, local files or URLs with a 10-band equalizer, while a person, seen from behind, walks across a wide, flat world and the sky, sun, moon, clouds, wind and sounds follow the time of day. Walk until the stamina runs out, then sit and rest. Music always plays; turn it off and the person sits down.
 
 - Portrait only, icon-only menus, built for phones (it also runs in a desktop browser).
 - Maps: **Salt Desert** (mirror lake under layered blue ridges), **Grassland** (swaying meadow, tall forested peaks), **Snow North** (snowfall, footprints, aurora, snow peaks), **Forest Path** (a gravel path between photo trees that grow and slide past as you walk). You can add your own with a JSON file (see [map 제작.md](map%20제작.md), written so an LLM can create maps for you), up to 9 maps in total.
