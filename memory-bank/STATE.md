@@ -5,7 +5,7 @@
 - **Wave:** 19
 - **Status:** Ready
 - **Cache Status:** CLEAN
-- **Last Checkpoint:** v0.2.1 released and installed on Android 2026-11-11
+- **Last Checkpoint:** v0.2.2 released and installed on Android 2026-11-11
 
 ## Wave History
 
@@ -29,4 +29,4 @@
 | 16 | Grassland mountain fixes; Windows installer (Electron) and GitHub release v0.1.0 | Done |
 | 17 | GitHub Pages web version, music pop-up, UI tweaks, mute toggle, store screenshots | Done |
 | 18 | Check and fix intermittent default YouTube playlist loading | Done |
-| 19 | Publish v0.2.1 Android and Windows builds; install Android update | Done |
+| 19 | Publish v0.2.2 Android and Windows builds; install Android update | Done |
